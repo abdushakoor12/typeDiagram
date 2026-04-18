@@ -24,21 +24,14 @@ navBlogHref: /blog/
 ---
 <div class="docs-layout">
   <aside class="docs-sidebar">
-    <ul class="docs-nav">
-      {% for d in docs %}
-        {% if "api/" not in d.slug %}
-          <li><a href="/docs/{{ d.slug }}.html" class="{% if d.slug == doc.slug %}active{% endif %}">{{ d.label }}</a></li>
-        {% endif %}
-      {% endfor %}
-    </ul>
-    <h4>API Reference</h4>
-    <ul class="docs-nav">
-      {% for d in docs %}
-        {% if "api/" in d.slug and d.isTopLevel %}
-          <li><a href="/docs/{{ d.slug }}.html" class="{% if d.slug == doc.slug %}active{% endif %}">{{ d.label }}</a></li>
-        {% endif %}
-      {% endfor %}
-    </ul>
+    {% set activeSlug = doc.slug %}
+    {% include "docs-nav-groups.njk" %}
   </aside>
-  <main class="docs-content">{{ doc.html | safe }}</main>
+  <nav class="docs-mobile-nav" aria-label="Documentation sections">
+    {% set activeSlug = doc.slug %}
+    {% include "docs-nav-groups.njk" %}
+  </nav>
+  <main class="docs-content">
+    {{ doc.html | safe }}
+  </main>
 </div>
