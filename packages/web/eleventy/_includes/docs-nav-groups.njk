@@ -1,0 +1,16 @@
+{% set currentDocSlug = activeSlug | default("") %}
+<ul class="docs-nav">
+  {% for d in docs %}
+    {% if "api/" not in d.slug %}
+      <li><a href="/docs/{{ d.slug }}.html" class="{% if d.slug == currentDocSlug %}active{% endif %}">{{ d.label }}</a></li>
+    {% endif %}
+  {% endfor %}
+</ul>
+<h4 class="docs-nav-heading">API Reference</h4>
+<ul class="docs-nav">
+  {% for d in docs %}
+    {% if "api/" in d.slug and d.isTopLevel %}
+      <li><a href="/docs/{{ d.slug }}.html" class="{% if d.slug == currentDocSlug %}active{% endif %}">{{ d.label }}</a></li>
+    {% endif %}
+  {% endfor %}
+</ul>

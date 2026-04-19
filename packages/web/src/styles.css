@@ -1167,12 +1167,6 @@ pre[class*="language-"] {
   .cta-card {
     padding: var(--td-space-xl);
   }
-  .docs-layout {
-    grid-template-columns: 1fr;
-  }
-  .docs-sidebar {
-    display: none;
-  }
   .conv-toolbar {
     flex-wrap: wrap;
   }
@@ -1273,6 +1267,24 @@ body {
   color: var(--td-primary);
   border-left-color: var(--td-primary);
   font-weight: 700;
+}
+
+.docs-nav-heading {
+  font-family: var(--td-font-mono);
+  font-size: var(--td-size-label);
+  color: var(--td-outline);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  font-weight: 400;
+  padding: 0 var(--td-space-md);
+  margin-top: var(--td-space-2xl);
+  padding-top: var(--td-space-2xl);
+  border-top: 1px solid var(--td-surface-high);
+  margin-bottom: var(--td-space-lg);
+}
+
+.docs-mobile-nav {
+  display: none;
 }
 
 .docs-content {
@@ -1408,6 +1420,80 @@ body {
 .docs-content a:hover {
   color: var(--td-tertiary);
   text-decoration: underline;
+}
+
+@media (max-width: 767px) {
+  .docs-layout {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+
+  .docs-sidebar {
+    display: none;
+  }
+
+  .docs-mobile-nav {
+    display: block;
+    grid-column: 1 / -1;
+    margin-bottom: var(--td-space-2xl);
+    padding: var(--td-space-lg);
+    border: 1px solid var(--td-surface-high);
+    border-radius: var(--td-radius-md);
+    background: var(--td-surface-low);
+  }
+
+  .docs-mobile-nav .docs-nav {
+    gap: 4px;
+  }
+
+  .docs-mobile-nav .docs-nav a {
+    padding-left: var(--td-space-md);
+    padding-right: var(--td-space-md);
+  }
+
+  .docs-mobile-nav .docs-nav-heading {
+    margin-top: var(--td-space-lg);
+    padding-top: var(--td-space-lg);
+  }
+
+  .docs-content {
+    min-width: 0;
+    padding: var(--td-space-2xl) var(--td-space-lg) var(--td-space-3xl);
+  }
+
+  .docs-content h1 {
+    font-size: clamp(1.9rem, 9vw, 2.5rem);
+    margin-bottom: var(--td-space-lg);
+  }
+
+  .docs-content h2 {
+    margin-top: var(--td-space-3xl);
+    padding-left: var(--td-space-md);
+  }
+
+  .docs-content > p:first-of-type {
+    font-size: 1rem;
+    max-width: none;
+  }
+
+  .docs-content p,
+  .docs-content li,
+  .docs-content a,
+  .docs-content strong {
+    overflow-wrap: anywhere;
+  }
+
+  .docs-content pre {
+    max-width: 100%;
+    padding: var(--td-space-lg);
+  }
+
+  .docs-content table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 /* ==========================================================================
