@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { fsharp } from "../../src/converters/index.js";
 import { parse } from "../../src/parser/index.js";
 import { buildModel } from "../../src/model/index.js";
-import { unwrap } from "./helpers.js";
+import { expectLosslessRoundTrip, unwrap } from "./helpers.js";
 
 describe("[CONV-FS-FROM-COMPLEX] complex F# -> typeDiagram", () => {
   it("parses a messy F# file with records, DUs, abbreviations, and noise", () => {
@@ -201,48 +201,7 @@ alias Email = String
 });
 
 describe("[CONV-FS-RT] F# round-trip TD -> F# -> TD", () => {
-  it("round-trips records and unit-variant unions preserving structure", () => {
-    const td = `
-type User {
-  name: String
-  age: Int
-  active: Bool
-}
-
-type Order {
-  id: String
-  total: Float
-}
-
-union Direction { North\n South\n East\n West }
-
-alias Tag = String
-`;
-    const model1 = unwrap(buildModel(unwrap(parse(td))));
-    const fsCode = fsharp.toSource(model1);
-    const model2 = unwrap(fsharp.fromSource(fsCode));
-
-    expect(model2.decls.length).toBeGreaterThanOrEqual(4);
-
-    const user = model2.decls.find((d) => d.name === "User");
-    expect(user?.kind).toBe("record");
-    expect(user?.kind === "record" ? user.fields.length : 0).toBe(3);
-    expect(user?.kind === "record" ? user.fields[0]?.type.name : "").toBe("String");
-    expect(user?.kind === "record" ? user.fields[1]?.type.name : "").toBe("Int");
-    expect(user?.kind === "record" ? user.fields[2]?.type.name : "").toBe("Bool");
-
-    const order = model2.decls.find((d) => d.name === "Order");
-    expect(order?.kind).toBe("record");
-    expect(order?.kind === "record" ? order.fields.length : 0).toBe(2);
-
-    const dir = model2.decls.find((d) => d.name === "Direction");
-    expect(dir?.kind).toBe("union");
-    const variants = dir?.kind === "union" ? dir.variants : [];
-    expect(variants).toHaveLength(4);
-    expect(variants[0]?.name).toBe("North");
-
-    const tag = model2.decls.find((d) => d.name === "Tag");
-    expect(tag?.kind).toBe("alias");
-    expect(tag?.kind === "alias" ? tag.target.name : "").toBe("String");
+  it("losslessly round-trips the home-page example through F# (TD text preserved)", () => {
+    expectLosslessRoundTrip(fsharp);
   });
 });

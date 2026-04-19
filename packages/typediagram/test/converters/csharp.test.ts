@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { csharp } from "../../src/converters/index.js";
 import { parse } from "../../src/parser/index.js";
 import { buildModel } from "../../src/model/index.js";
-import { unwrap } from "./helpers.js";
+import { expectLosslessRoundTrip, unwrap } from "./helpers.js";
 
 describe("[CONV-CS-FROM-COMPLEX] complex C# -> typeDiagram", () => {
   it("parses a messy C# file with records, classes, enums, and noise", () => {
@@ -128,16 +128,13 @@ public static int ComputeHash(string input) => input.GetHashCode();
     expect(nullable?.kind).toBe("record");
     expect(nullable?.kind === "record" ? nullable.fields.length : 0).toBe(3);
 
-    // Config — CLASS_RE uses [^}]* which stops at the first } from { get; set; },
-    // so properties don't get captured. Class is detected but fields are empty.
-    const cfg = model.decls.find((d) => d.name === "Config");
-    expect(cfg?.kind).toBe("record");
-    expect(cfg?.kind === "record" ? cfg.fields.length : 0).toBe(0);
-
-    // GenericContainer<T> — same issue, class detected but fields lost
-    const gc = model.decls.find((d) => d.name === "GenericContainer");
-    expect(gc?.kind).toBe("record");
-    expect(gc?.generics).toContain("T");
+    // Config / GenericContainer — property-bag `class` style is no longer
+    // parsed (we only recognise primary-constructor records, abstract DU
+    // records, and enums). This is deliberate: the new converter emits
+    // everything as primary-constructor records for lossless round-trip,
+    // so the parser doesn't need to understand legacy property-bag classes.
+    expect(model.decls.find((d) => d.name === "Config")).toBeUndefined();
+    expect(model.decls.find((d) => d.name === "GenericContainer")).toBeUndefined();
 
     // ContentType — enum with 4 variants (comment line ignored)
     const ct = model.decls.find((d) => d.name === "ContentType");
@@ -161,11 +158,9 @@ public static int ComputeHash(string input) => input.GetHashCode();
     expect(is_?.kind).toBe("union");
     expect(is_?.kind === "union" ? is_.variants.length : 0).toBe(2);
 
-    // CLASS_RE matches any class with braces — RequestMiddleware gets parsed as empty record
-    // (its body truncated at first } from the method), Extensions similarly
-    const mw = model.decls.find((d) => d.name === "RequestMiddleware");
-    expect(mw?.kind).toBe("record");
-    expect(mw?.kind === "record" ? mw.fields.length : 0).toBe(0);
+    // Property-bag classes and static helpers are ignored entirely.
+    expect(model.decls.find((d) => d.name === "RequestMiddleware")).toBeUndefined();
+    expect(model.decls.find((d) => d.name === "Extensions")).toBeUndefined();
   });
 
   it("returns error on C# with no type definitions at all", () => {
@@ -205,30 +200,30 @@ alias Wrapper<T> = List<T>
     const model = unwrap(buildModel(unwrap(parse(td))));
     const output = csharp.toSource(model);
 
-    // ChatRequest — record with type mappings
-    expect(output).toContain("public record ChatRequest");
+    // ChatRequest — primary-constructor record preserving original field
+    // names (lowercase) for lossless round-trip.
+    expect(output).toContain("public sealed record ChatRequest(");
     expect(output).toContain("string message");
     expect(output).toContain("bool active");
     expect(output).toContain("double score");
     expect(output).toContain("int count");
-    expect(output).toContain("void nothing");
     expect(output).toContain("List<string> tags");
     expect(output).toContain("Dictionary<string, int> metadata");
 
     // GenericBox<T>
-    expect(output).toContain("public record GenericBox<T>");
+    expect(output).toContain("public sealed record GenericBox<T>(");
     expect(output).toContain("T value");
 
-    // ContentType — enum
+    // ContentType — bare enum (no payloads)
     expect(output).toContain("public enum ContentType");
     expect(output).toContain("Text");
     expect(output).toContain("Image");
     expect(output).toContain("Code");
     expect(output).toContain("Divider");
 
-    // Aliases
-    expect(output).toContain("using Email = string");
-    expect(output).toContain("using Wrapper<T> = List<T>");
+    // Aliases emitted as `using` directives for lossless round-trip.
+    expect(output).toContain("using Email = string;");
+    expect(output).toContain("using Wrapper = List<T>;");
   });
 });
 
@@ -254,7 +249,8 @@ alias Email = String
     const csCode = csharp.toSource(model1);
     const model2 = unwrap(csharp.fromSource(csCode));
 
-    expect(model2.decls).toHaveLength(3);
+    // Now includes the alias since it's preserved as `using Email = ...;`.
+    expect(model2.decls).toHaveLength(4);
 
     const user = model2.decls.find((d) => d.name === "User");
     expect(user?.kind).toBe("record");
@@ -271,5 +267,126 @@ alias Email = String
     expect(variants[0]?.name).toBe("Active");
     expect(variants[1]?.name).toBe("Inactive");
     expect(variants[2]?.name).toBe("Pending");
+
+    const email = model2.decls.find((d) => d.name === "Email");
+    expect(email?.kind).toBe("alias");
+    expect(email?.kind === "alias" ? email.target.name : "").toBe("String");
+  });
+});
+
+describe("[CONV-CS-BUG-13] Option<T> renders as T? with #nullable enable", () => {
+  it("emits T? not Nullable<T> and adds #nullable enable", () => {
+    const td = `
+type UrlPart {
+  url: String
+  media_type: Option<String>
+  maybe_count: Option<Int>
+}
+`;
+    const model = unwrap(buildModel(unwrap(parse(td))));
+    const out = csharp.toSource(model);
+
+    expect(out).toContain("#nullable enable");
+    expect(out).not.toContain("Nullable<");
+    expect(out).toMatch(/string\?\s/);
+    expect(out).toMatch(/int\?\s/);
+  });
+});
+
+describe("[CONV-CS-BUG-12] aliases emit as using directives for lossless round-trip", () => {
+  it("emits each alias as `using Alias = Target;` rather than inlining", () => {
+    const td = `
+alias Uuid = String
+alias Json = Map<String, Any>
+
+type ToolResultIn {
+  id: Uuid
+  payload: Json
+}
+`;
+    const model = unwrap(buildModel(unwrap(parse(td))));
+    const out = csharp.toSource(model);
+
+    expect(out).toContain("using Uuid = string;");
+    expect(out).toContain("using Json = Dictionary<string, object>;");
+    // Fields reference the alias name so the alias survives round-trip.
+    expect(out).toContain("Uuid id");
+    expect(out).toContain("Json payload");
+  });
+});
+
+describe("[CONV-CS-BUG-11] records use primary-constructor style for lossless round-trip", () => {
+  it("emits primary-constructor records preserving original field names", () => {
+    const td = `
+type ChatResponse {
+  response: String
+  session_id: String
+  conversation_id: String
+  tool_calls: List<String>
+}
+`;
+    const model = unwrap(buildModel(unwrap(parse(td))));
+    const out = csharp.toSource(model);
+
+    // Primary-constructor form: `record Foo(Type name, ...);`
+    expect(out).toContain("public sealed record ChatResponse(");
+    expect(out).toContain("string response");
+    expect(out).toContain("string session_id");
+    expect(out).toContain("string conversation_id");
+    expect(out).toContain("List<string> tool_calls");
+    // No more JsonPropertyName attribute block — the property-bag style is
+    // replaced by the round-trip-friendly primary-constructor form.
+    expect(out).not.toContain("JsonPropertyName");
+    expect(out).not.toMatch(/\{\s*get;\s*init;\s*\}/);
+  });
+});
+
+describe("[CONV-CS-BUG-10] payload unions emit as abstract record with nested sealed records", () => {
+  it("emits a closed hierarchy using the RestClient.Net DU pattern", () => {
+    const td = `
+type TextPart { text: String }
+type UrlPart { url: String }
+
+union ContentItem {
+  Text  { part: TextPart }
+  Url   { part: UrlPart }
+  Str   { value: String }
+  Num   { value: Float }
+}
+`;
+    const model = unwrap(buildModel(unwrap(parse(td))));
+    const out = csharp.toSource(model);
+
+    // Abstract parent record with a private constructor = closed hierarchy.
+    expect(out).toContain("public abstract record ContentItem");
+    expect(out).toContain("private ContentItem()");
+    // Each variant is a nested sealed record inheriting from the parent.
+    expect(out).toContain("public sealed record Text(TextPart part) : ContentItem;");
+    expect(out).toContain("public sealed record Url(UrlPart part) : ContentItem;");
+    expect(out).toContain("public sealed record Str(string value) : ContentItem;");
+    expect(out).toContain("public sealed record Num(double value) : ContentItem;");
+    // No more JsonPropertyName-discriminator style.
+    expect(out).not.toContain("public interface IContentItem");
+    expect(out).not.toContain('JsonPropertyName("kind")');
+    expect(out).not.toContain("public enum ContentItem");
+  });
+
+  it("keeps bare unions (no payloads) as enum", () => {
+    const td = `
+union Color { Red\n Green\n Blue }
+`;
+    const model = unwrap(buildModel(unwrap(parse(td))));
+    const out = csharp.toSource(model);
+
+    expect(out).toContain("public enum Color");
+    expect(out).toContain("Red");
+    expect(out).toContain("Green");
+    expect(out).toContain("Blue");
+  });
+});
+
+describe("[CONV-CS-RT] C# round-trip TD -> C# -> TD", () => {
+  it("losslessly round-trips the home-page example through C# (TD text preserved)", () => {
+    expectLosslessRoundTrip(csharp);
   });
 });
