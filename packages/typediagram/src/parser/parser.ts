@@ -253,6 +253,10 @@ class Parser {
       this.cur.next();
       fields = this.parseFieldList();
       this.expect("RBrace", "'}'");
+    } else if (this.cur.peek().kind === "LParen") {
+      this.cur.next();
+      fields = this.parseTupleVariantFieldList();
+      this.expect("RParen", "')'");
     }
     return withDiscriminant<Variant>(
       {
@@ -271,6 +275,31 @@ class Parser {
     this.cur.next();
     const valueTok = this.expect("Number", "numeric discriminant");
     return valueTok?.value;
+  }
+
+  private parseTupleVariantFieldList(): Field[] {
+    const fields: Field[] = [];
+    for (;;) {
+      this.cur.eatNewlines();
+      if (this.cur.peek().kind === "RParen" || this.cur.peek().kind === "EOF") {
+        return fields;
+      }
+      const type = this.parseTypeRef();
+      if (type === null) {
+        return fields;
+      }
+      fields.push({
+        name: `_${String(fields.length)}`,
+        type,
+        span: type.span,
+      });
+      this.cur.eatNewlines();
+      if (this.cur.peek().kind === "Comma") {
+        this.cur.next();
+      } else {
+        return fields;
+      }
+    }
   }
 
   private parseTypeRef(): TypeRef | null {

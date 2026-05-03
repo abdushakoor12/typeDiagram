@@ -244,6 +244,21 @@ union ErrorCode {
     expect(printSource(roundTrip)).toContain("InvalidRequest = -32600");
     expect(printSource(roundTrip)).toContain("MethodNotFound = -32601");
   });
+
+  it("emits tuple enum variants from tuple-form union syntax", () => {
+    const td = `
+union RequestId {
+  Number(Int)
+  String(String)
+}
+`;
+    const model = unwrap(buildModel(unwrap(parse(td))));
+    const output = rust.toSource(model);
+
+    expect(output).toContain("pub enum RequestId");
+    expect(output).toContain("Number(i64)");
+    expect(output).toContain("String(String)");
+  });
 });
 
 describe("[CONV-RUST-RT] Rust round-trip TD -> Rust -> TD", () => {

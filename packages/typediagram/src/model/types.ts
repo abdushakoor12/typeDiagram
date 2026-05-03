@@ -40,6 +40,10 @@ export interface ResolvedVariant {
   fields: ResolvedField[];
 }
 
+export function isTupleVariantFields(fields: readonly { name: string }[]): boolean {
+  return fields.every((field, index) => field.name === `_${String(index)}`);
+}
+
 export interface ResolvedTypeRef {
   /** Original name as written, e.g. `List`, `Option`, `T`, `String`, `MyType`. */
   name: string;

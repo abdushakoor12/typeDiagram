@@ -65,4 +65,9 @@ union Option<T> {
   None
 }
 
+union RequestId {
+  Number(Int)
+  String(String)
+}
+
 alias Email = String
