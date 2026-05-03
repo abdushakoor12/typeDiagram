@@ -1,7 +1,13 @@
 import ELK from "elkjs/lib/elk.bundled.js";
 import type { Diagnostic } from "../parser/diagnostics.js";
 import { type Result, err, ok } from "../result.js";
-import { isTupleVariantFields, type Edge, type Model, type ResolvedDecl, type ResolvedTypeRef } from "../model/types.js";
+import {
+  isTupleVariantFields,
+  type Edge,
+  type Model,
+  type ResolvedDecl,
+  type ResolvedTypeRef,
+} from "../model/types.js";
 import { measureBlock, measureText } from "./measure.js";
 import type { EdgeRoute, LaidOutGraph, LayoutOpts, NodeBox, NodeRow } from "./types.js";
 
