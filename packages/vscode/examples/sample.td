@@ -54,6 +54,12 @@ union UriKind {
   Api
 }
 
+union ErrorCode {
+  ParseError = -32700
+  InvalidRequest = -32600
+  MethodNotFound = -32601
+}
+
 union Option<T> {
   Some { value: T }
   None
