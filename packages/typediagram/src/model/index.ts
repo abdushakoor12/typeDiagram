@@ -15,6 +15,7 @@ export type {
 export { printSource } from "./print.js";
 export { validate } from "./validate.js";
 export {
+  isTupleVariantFields,
   PRIMITIVES,
   type Edge,
   type EdgeKind,
