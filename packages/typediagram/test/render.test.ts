@@ -56,6 +56,22 @@ describe("render — chat example", () => {
     const out = unwrap(await renderToString(SMALL_EXAMPLE));
     expect(out).toMatchSnapshot();
   });
+
+  it("renders explicit union discriminants in the SVG text", async () => {
+    const out = unwrap(
+      await renderToString(`
+union ErrorCode {
+  ParseError = -32700
+  InvalidRequest = -32600
+  MethodNotFound = -32601
+}
+`)
+    );
+
+    expect(out).toContain("ParseError = -32700");
+    expect(out).toContain("InvalidRequest = -32600");
+    expect(out).toContain("MethodNotFound = -32601");
+  });
 });
 
 describe("render — error path", () => {
