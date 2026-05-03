@@ -1,5 +1,6 @@
 import type { Diagnostic } from "../parser/diagnostics.js";
 import { type Result, err, ok } from "../result.js";
+import { withDiscriminant } from "../variant.js";
 import { validate } from "./validate.js";
 import {
   PRIMITIVES,
@@ -52,11 +53,13 @@ function toField(f: FieldSpec): ResolvedField {
 }
 
 function toVariant(v: VariantSpec): ResolvedVariant {
-  return {
-    name: v.name,
-    ...(v.discriminant === undefined ? {} : { discriminant: v.discriminant }),
-    fields: (v.fields ?? []).map(toField),
-  };
+  return withDiscriminant<ResolvedVariant>(
+    {
+      name: v.name,
+      fields: (v.fields ?? []).map(toField),
+    },
+    v.discriminant
+  );
 }
 
 export class ModelBuilder {
@@ -125,11 +128,15 @@ export function resolveResolutions(model: Model): Model {
     if (d.kind === "union") {
       return {
         ...d,
-        variants: d.variants.map((v) => ({
-          name: v.name,
-          ...(v.discriminant === undefined ? {} : { discriminant: v.discriminant }),
-          fields: v.fields.map((f) => ({ name: f.name, type: fixRef(f.type, generics, d.name) })),
-        })),
+        variants: d.variants.map((v) =>
+          withDiscriminant<ResolvedVariant>(
+            {
+              name: v.name,
+              fields: v.fields.map((f) => ({ name: f.name, type: fixRef(f.type, generics, d.name) })),
+            },
+            v.discriminant
+          )
+        ),
       };
     }
     return { ...d, target: fixRef(d.target, generics, d.name) };

@@ -1,7 +1,8 @@
 import type { Diagnostic } from "../parser/diagnostics.js";
 import { type Result, err, ok } from "../result.js";
+import { withDiscriminant } from "../variant.js";
 import { resolveResolutions } from "./builder.js";
-import type { Model, ResolvedDecl, ResolvedTypeRef } from "./types.js";
+import type { Model, ResolvedDecl, ResolvedTypeRef, ResolvedVariant } from "./types.js";
 
 export const SCHEMA_VERSION = 1;
 
@@ -65,11 +66,15 @@ function declToJson(d: ResolvedDecl): DeclJson {
       kind: "union",
       name: d.name,
       generics: [...d.generics],
-      variants: d.variants.map((v) => ({
-        name: v.name,
-        ...(v.discriminant === undefined ? {} : { discriminant: v.discriminant }),
-        fields: v.fields.map((f) => ({ name: f.name, type: refToJson(f.type) })),
-      })),
+      variants: d.variants.map((v) =>
+        withDiscriminant<VariantJson>(
+          {
+            name: v.name,
+            fields: v.fields.map((f) => ({ name: f.name, type: refToJson(f.type) })),
+          },
+          v.discriminant
+        )
+      ),
     };
   }
   return {
@@ -151,11 +156,15 @@ function declFromJson(d: unknown): Result<ResolvedDecl, Diagnostic[]> {
       kind: "union",
       name: x.name,
       generics: x.generics,
-      variants: x.variants.map((v) => ({
-        name: v.name,
-        ...(v.discriminant === undefined ? {} : { discriminant: v.discriminant }),
-        fields: v.fields.map(fieldFromJson),
-      })),
+      variants: x.variants.map((v) =>
+        withDiscriminant<ResolvedVariant>(
+          {
+            name: v.name,
+            fields: v.fields.map(fieldFromJson),
+          },
+          v.discriminant
+        )
+      ),
     });
   }
   if (x.kind === "alias") {

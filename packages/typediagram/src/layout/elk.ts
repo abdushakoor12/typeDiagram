@@ -2,7 +2,8 @@ import ELK from "elkjs/lib/elk.bundled.js";
 import type { Diagnostic } from "../parser/diagnostics.js";
 import { type Result, err, ok } from "../result.js";
 import type { Edge, Model, ResolvedDecl, ResolvedTypeRef } from "../model/types.js";
-import { measureBlock, measureText } from "./measure.js";
+import { formatVariantName } from "../variant.js";
+import { measureText } from "./measure.js";
 import type { EdgeRoute, LaidOutGraph, LayoutOpts, NodeBox, NodeRow } from "./types.js";
 
 const DEFAULT_FONT_SIZE = 13;
@@ -80,10 +81,6 @@ function rowText(name: string, type: ResolvedTypeRef): string {
   return `${name}: ${printRefShort(type)}`;
 }
 
-function variantText(name: string, discriminant?: string): string {
-  return discriminant === undefined ? name : `${name} = ${discriminant}`;
-}
-
 function printRefShort(t: ResolvedTypeRef): string {
   if (t.args.length === 0) {
     return t.name;
@@ -122,7 +119,7 @@ function buildPreNodes(decls: ResolvedDecl[], fontSize: number, padX: number, pa
       }
     } else if (d.kind === "union") {
       for (const v of d.variants) {
-        const head = variantText(v.name, v.discriminant);
+        const head = formatVariantName(v.name, v.discriminant);
         const variantHeader =
           v.fields.length === 0 ? head : `${head} { ${v.fields.map((f) => rowText(f.name, f.type)).join(", ")} }`;
         const m = measureText(variantHeader, fontSize);
@@ -147,8 +144,6 @@ function buildPreNodes(decls: ResolvedDecl[], fontSize: number, padX: number, pa
     out.push({ id: d.name, decl: d, header, rows, width, height });
   }
 
-  // suppress unused-var warning
-  void measureBlock;
   return out;
 }
 

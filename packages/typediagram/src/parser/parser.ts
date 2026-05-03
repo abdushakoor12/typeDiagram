@@ -4,6 +4,7 @@ import type { Token, TokenKind } from "./lexer.js";
 import { tokenize } from "./lexer.js";
 import { type Result, err, ok } from "../result.js";
 import type { Diagnostic } from "./diagnostics.js";
+import { withDiscriminant } from "../variant.js";
 
 class Cursor {
   private i = 0;
@@ -253,12 +254,14 @@ class Parser {
       fields = this.parseFieldList();
       this.expect("RBrace", "'}'");
     }
-    return {
-      name: nameTok.value,
-      ...(discriminant === undefined ? {} : { discriminant }),
-      fields,
-      span: spanBetween(nameTok, this.cur.peek()),
-    };
+    return withDiscriminant<Variant>(
+      {
+        name: nameTok.value,
+        fields,
+        span: spanBetween(nameTok, this.cur.peek()),
+      },
+      discriminant
+    );
   }
 
   private parseVariantDiscriminant(): string | undefined {

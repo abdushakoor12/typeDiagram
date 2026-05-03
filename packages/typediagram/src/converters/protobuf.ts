@@ -21,7 +21,7 @@ import type { Model, ResolvedTypeRef } from "../model/types.js";
 import { ModelBuilder, record, union, alias } from "../model/builder.js";
 import type { Converter } from "./types.js";
 import { parseTypeRef, printTypeRef } from "./parse-typeref.js";
-import { extractBalancedBlock, splitTopLevelCommas } from "./brace-lang.js";
+import { extractBalancedBlock } from "./brace-lang.js";
 
 // ── Type mapping ──
 
@@ -451,11 +451,6 @@ const toProto = (model: Model): string => {
   }
   return lines.join("\n").replace(/\n+$/, "\n");
 };
-
-// splitTopLevelCommas is used via the shared helper when parsing generic
-// argument lists inside `@td-type:` directives. Re-export by using the
-// import so tree-shaking doesn't complain.
-void splitTopLevelCommas;
 
 export const protobuf: Converter = {
   language: "protobuf",

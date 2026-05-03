@@ -1,6 +1,7 @@
 // [CONV-RUST] Rust <-> typeDiagram bidirectional converter.
 import type { Diagnostic } from "../parser/diagnostics.js";
 import { type Result, err } from "../result.js";
+import { formatVariantName, withDiscriminant } from "../variant.js";
 import type { Model, ResolvedTypeRef } from "../model/types.js";
 import { ModelBuilder, record, union, alias } from "../model/builder.js";
 import type { Converter } from "./types.js";
@@ -229,11 +230,19 @@ const fromRust = (source: string): Result<Model, Diagnostic[]> => {
       continue;
     }
     found = true;
-    const variants = parseRsVariants(body).map((v) => ({
-      name: v.name,
-      ...(v.discriminant === undefined ? {} : { discriminant: v.discriminant }),
-      fields: v.fields.map((f) => ({ name: f.name, type: parseTypeRef(f.type) })),
-    }));
+    const variants = parseRsVariants(body).map((v) =>
+      withDiscriminant<{
+        name: string;
+        discriminant?: string;
+        fields: Array<{ name: string; type: ResolvedTypeRef }>;
+      }>(
+        {
+          name: v.name,
+          fields: v.fields.map((f) => ({ name: f.name, type: parseTypeRef(f.type) })),
+        },
+        v.discriminant
+      )
+    );
     builder.add(union(name, variants, rsGenerics(gens)));
   }
 
@@ -275,8 +284,7 @@ const toRust = (model: Model): string => {
       lines.push(`pub enum ${d.name}${genericsStr} {`);
       for (const v of d.variants) {
         if (v.fields.length === 0) {
-          const discriminant = v.discriminant === undefined ? "" : ` = ${v.discriminant}`;
-          lines.push(`    ${v.name}${discriminant},`);
+          lines.push(`    ${formatVariantName(v.name, v.discriminant)},`);
         } else {
           lines.push(`    ${v.name} { ${v.fields.map((f) => `${f.name}: ${mapTdToRs(f.type)}`).join(", ")} },`);
         }
