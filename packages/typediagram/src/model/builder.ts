@@ -21,6 +21,7 @@ export interface FieldSpec {
 
 export interface VariantSpec {
   name: string;
+  discriminant?: string;
   fields?: FieldSpec[];
 }
 
@@ -51,7 +52,11 @@ function toField(f: FieldSpec): ResolvedField {
 }
 
 function toVariant(v: VariantSpec): ResolvedVariant {
-  return { name: v.name, fields: (v.fields ?? []).map(toField) };
+  return {
+    name: v.name,
+    ...(v.discriminant === undefined ? {} : { discriminant: v.discriminant }),
+    fields: (v.fields ?? []).map(toField),
+  };
 }
 
 export class ModelBuilder {
@@ -122,6 +127,7 @@ export function resolveResolutions(model: Model): Model {
         ...d,
         variants: d.variants.map((v) => ({
           name: v.name,
+          ...(v.discriminant === undefined ? {} : { discriminant: v.discriminant }),
           fields: v.fields.map((f) => ({ name: f.name, type: fixRef(f.type, generics, d.name) })),
         })),
       };

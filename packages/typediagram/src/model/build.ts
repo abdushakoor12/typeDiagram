@@ -128,6 +128,7 @@ function resolveVariant(
 ): ResolvedVariant {
   return {
     name: v.name,
+    ...(v.discriminant === undefined ? {} : { discriminant: v.discriminant }),
     fields: v.fields.map((f) => resolveField(f, ownerName, declMap, externals, generics, bag)),
   };
 }

@@ -246,6 +246,7 @@ class Parser {
       this.skipToFieldBoundary();
       return null;
     }
+    const discriminant = this.parseVariantDiscriminant();
     let fields: Field[] = [];
     if (this.cur.peek().kind === "LBrace") {
       this.cur.next();
@@ -254,9 +255,19 @@ class Parser {
     }
     return {
       name: nameTok.value,
+      ...(discriminant === undefined ? {} : { discriminant }),
       fields,
       span: spanBetween(nameTok, this.cur.peek()),
     };
+  }
+
+  private parseVariantDiscriminant(): string | undefined {
+    if (this.cur.peek().kind !== "Equals") {
+      return undefined;
+    }
+    this.cur.next();
+    const valueTok = this.expect("Number", "numeric discriminant");
+    return valueTok?.value;
   }
 
   private parseTypeRef(): TypeRef | null {

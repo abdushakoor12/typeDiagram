@@ -36,6 +36,7 @@ export interface FieldJson {
 }
 export interface VariantJson {
   name: string;
+  discriminant?: string;
   fields: FieldJson[];
 }
 export interface TypeRefJson {
@@ -66,6 +67,7 @@ function declToJson(d: ResolvedDecl): DeclJson {
       generics: [...d.generics],
       variants: d.variants.map((v) => ({
         name: v.name,
+        ...(v.discriminant === undefined ? {} : { discriminant: v.discriminant }),
         fields: v.fields.map((f) => ({ name: f.name, type: refToJson(f.type) })),
       })),
     };
@@ -151,6 +153,7 @@ function declFromJson(d: unknown): Result<ResolvedDecl, Diagnostic[]> {
       generics: x.generics,
       variants: x.variants.map((v) => ({
         name: v.name,
+        ...(v.discriminant === undefined ? {} : { discriminant: v.discriminant }),
         fields: v.fields.map(fieldFromJson),
       })),
     });

@@ -155,8 +155,15 @@ const splitRsVariants = (body: string): string[] => {
   return last.length > 0 ? [...parts, last] : parts;
 };
 
+const parseUnitVariant = (line: string) => {
+  const [rawName, rawDiscriminant] = line.split("=").map((part) => part.trim());
+  return rawDiscriminant === undefined
+    ? { name: line.replace(/,$/, "").trim() }
+    : { name: rawName ?? line.replace(/,$/, "").trim(), discriminant: rawDiscriminant.replace(/,$/, "").trim() };
+};
+
 const parseRsVariants = (body: string) => {
-  const variants: Array<{ name: string; fields: Array<{ name: string; type: string }> }> = [];
+  const variants: Array<{ name: string; discriminant?: string; fields: Array<{ name: string; type: string }> }> = [];
   const raw = splitRsVariants(body).filter((s) => s.length > 0 && !s.startsWith("//"));
 
   for (const line of raw) {
@@ -177,7 +184,7 @@ const parseRsVariants = (body: string) => {
       const fields = types.map((t, i) => ({ name: `_${String(i)}`, type: mapRsType(t) }));
       variants.push({ name, fields });
     } else {
-      variants.push({ name: line.replace(/,$/, "").trim(), fields: [] });
+      variants.push({ ...parseUnitVariant(line), fields: [] });
     }
   }
   return variants;
@@ -224,6 +231,7 @@ const fromRust = (source: string): Result<Model, Diagnostic[]> => {
     found = true;
     const variants = parseRsVariants(body).map((v) => ({
       name: v.name,
+      ...(v.discriminant === undefined ? {} : { discriminant: v.discriminant }),
       fields: v.fields.map((f) => ({ name: f.name, type: parseTypeRef(f.type) })),
     }));
     builder.add(union(name, variants, rsGenerics(gens)));
@@ -267,7 +275,8 @@ const toRust = (model: Model): string => {
       lines.push(`pub enum ${d.name}${genericsStr} {`);
       for (const v of d.variants) {
         if (v.fields.length === 0) {
-          lines.push(`    ${v.name},`);
+          const discriminant = v.discriminant === undefined ? "" : ` = ${v.discriminant}`;
+          lines.push(`    ${v.name}${discriminant},`);
         } else {
           lines.push(`    ${v.name} { ${v.fields.map((f) => `${f.name}: ${mapTdToRs(f.type)}`).join(", ")} },`);
         }

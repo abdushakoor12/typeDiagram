@@ -18,11 +18,12 @@ function printDecl(d: ResolvedDecl): string {
   if (d.kind === "union") {
     const variants = d.variants
       .map((v) => {
+        const discriminant = v.discriminant === undefined ? "" : ` = ${v.discriminant}`;
         if (v.fields.length === 0) {
-          return `  ${v.name}`;
+          return `  ${v.name}${discriminant}`;
         }
         const inner = v.fields.map((f) => `${f.name}: ${printRef(f.type)}`).join(", ");
-        return `  ${v.name} { ${inner} }`;
+        return `  ${v.name}${discriminant} { ${inner} }`;
       })
       .join("\n");
     return `union ${d.name}${generics} {\n${variants}\n}`;

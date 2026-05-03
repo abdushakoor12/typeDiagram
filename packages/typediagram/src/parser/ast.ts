@@ -44,6 +44,7 @@ export interface Field {
 
 export interface Variant {
   name: string;
+  discriminant?: string;
   fields: Field[];
   span: Span;
 }

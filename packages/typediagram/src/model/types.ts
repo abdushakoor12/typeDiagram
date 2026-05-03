@@ -36,6 +36,7 @@ export interface ResolvedField {
 
 export interface ResolvedVariant {
   name: string;
+  discriminant?: string;
   fields: ResolvedField[];
 }
 
