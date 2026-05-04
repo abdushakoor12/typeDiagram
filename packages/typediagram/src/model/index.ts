@@ -1,6 +1,6 @@
 export { buildModel, buildModelPartial } from "./build.js";
 export { ModelBuilder, alias, record, ref, resolveResolutions, union } from "./builder.js";
-export type { FieldSpec, VariantSpec } from "./builder.js";
+export type { FieldSpec, UnionSpec, VariantSpec } from "./builder.js";
 export { fromJSON, toJSON, SCHEMA_VERSION } from "./json.js";
 export type {
   AliasJson,

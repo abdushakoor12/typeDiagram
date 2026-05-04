@@ -23,6 +23,7 @@ export interface UnionJson {
   kind: "union";
   name: string;
   generics: string[];
+  untagged?: true;
   variants: VariantJson[];
 }
 export interface AliasJson {
@@ -66,6 +67,7 @@ function declToJson(d: ResolvedDecl): DeclJson {
       kind: "union",
       name: d.name,
       generics: [...d.generics],
+      ...(d.untagged === true ? { untagged: true as const } : {}),
       variants: d.variants.map((v) =>
         withDiscriminant<VariantJson>(
           {
@@ -156,6 +158,7 @@ function declFromJson(d: unknown): Result<ResolvedDecl, Diagnostic[]> {
       kind: "union",
       name: x.name,
       generics: x.generics,
+      ...(x.untagged === true ? { untagged: true as const } : {}),
       variants: x.variants.map((v) =>
         withDiscriminant<ResolvedVariant>(
           {

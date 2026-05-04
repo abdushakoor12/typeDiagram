@@ -3,6 +3,7 @@ import type { DiagnosticBag } from "./diagnostics.js";
 export type TokenKind =
   | "TypeKw"
   | "UnionKw"
+  | "UntaggedKw"
   | "AliasKw"
   | "TypeDiagramKw"
   | "Ident"
@@ -31,6 +32,7 @@ export interface Token {
 const KEYWORDS: Record<string, TokenKind> = {
   type: "TypeKw",
   union: "UnionKw",
+  untagged: "UntaggedKw",
   alias: "AliasKw",
   typeDiagram: "TypeDiagramKw",
 };

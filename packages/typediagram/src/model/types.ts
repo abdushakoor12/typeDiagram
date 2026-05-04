@@ -19,6 +19,7 @@ export interface ResolvedUnion {
   kind: "union";
   name: string;
   generics: string[];
+  untagged?: true;
   variants: ResolvedVariant[];
 }
 

@@ -24,6 +24,7 @@ export interface UnionDecl {
   kind: "union";
   name: string;
   generics: string[];
+  untagged?: true;
   variants: Variant[];
   span: Span;
 }

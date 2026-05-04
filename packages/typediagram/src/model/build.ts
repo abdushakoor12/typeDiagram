@@ -100,6 +100,7 @@ function resolveUnion(
     kind: "union",
     name: d.name,
     generics: [...d.generics],
+    ...(d.untagged === true ? { untagged: true as const } : {}),
     variants: d.variants.map((v) => resolveVariant(v, d.name, declMap, externals, generics, bag)),
   };
 }

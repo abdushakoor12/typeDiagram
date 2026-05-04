@@ -30,7 +30,7 @@ function printDecl(d: ResolvedDecl): string {
         return `  ${head} { ${inner} }`;
       })
       .join("\n");
-    return `union ${d.name}${generics} {\n${variants}\n}`;
+    return `${d.untagged === true ? "untagged union" : "union"} ${d.name}${generics} {\n${variants}\n}`;
   }
   return `alias ${d.name}${generics} = ${printRef(d.target)}`;
 }

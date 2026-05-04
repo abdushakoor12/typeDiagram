@@ -281,6 +281,9 @@ const toRust = (model: Model): string => {
       }
       lines.push("}", "");
     } else if (d.kind === "union") {
+      if (d.untagged === true) {
+        lines.push("#[serde(untagged)]");
+      }
       lines.push(`pub enum ${d.name}${genericsStr} {`);
       for (const v of d.variants) {
         if (v.fields.length === 0) {

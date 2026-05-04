@@ -83,10 +83,29 @@ class Parser {
     if (t.kind === "UnionKw") {
       return this.parseUnion();
     }
+    if (t.kind === "UntaggedKw") {
+      const next = this.cur.peek(1);
+      if (next.kind !== "UnionKw") {
+        this.diags.error(
+          `expected 'union' after 'untagged', got ${describe(next)}`,
+          next.line,
+          next.col,
+          next.length || 1
+        );
+        this.recoverToTopLevel();
+        return null;
+      }
+      return this.parseUnion(true);
+    }
     if (t.kind === "AliasKw") {
       return this.parseAlias();
     }
-    this.diags.error(`expected 'type', 'union', or 'alias', got ${describe(t)}`, t.line, t.col, t.length || 1);
+    this.diags.error(
+      `expected 'type', 'union', 'untagged union', or 'alias', got ${describe(t)}`,
+      t.line,
+      t.col,
+      t.length || 1
+    );
     this.recoverToTopLevel();
     return null;
   }
@@ -114,7 +133,8 @@ class Parser {
     };
   }
 
-  private parseUnion(): UnionDecl | null {
+  private parseUnion(untagged = false): UnionDecl | null {
+    const start = untagged ? this.cur.next() : this.cur.peek();
     const kw = this.cur.next();
     const nameTok = this.expect("Ident", "union name");
     if (nameTok === null) {
@@ -132,8 +152,9 @@ class Parser {
       kind: "union",
       name: nameTok.value,
       generics,
+      ...(untagged ? { untagged: true as const } : {}),
       variants,
-      span: spanBetween(kw, closeTok ?? kw),
+      span: spanBetween(start, closeTok ?? kw),
     };
   }
 

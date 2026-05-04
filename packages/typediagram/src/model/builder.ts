@@ -26,6 +26,10 @@ export interface VariantSpec {
   fields?: FieldSpec[];
 }
 
+export interface UnionSpec {
+  untagged?: boolean;
+}
+
 /** Build a TypeRef. Resolution is deferred to validate(). */
 export function ref(name: string, args: ResolvedTypeRef[] = []): ResolvedTypeRef {
   return { name, args, resolution: { kind: "external" } };
@@ -35,11 +39,12 @@ export function record(name: string, fields: FieldSpec[], generics: string[] = [
   return { kind: "record", name, generics, fields: fields.map(toField) };
 }
 
-export function union(name: string, variants: VariantSpec[], generics: string[] = []): ResolvedUnion {
+export function union(name: string, variants: VariantSpec[], generics: string[] = [], spec?: UnionSpec): ResolvedUnion {
   return {
     kind: "union",
     name,
     generics,
+    ...(spec?.untagged === true ? { untagged: true as const } : {}),
     variants: variants.map(toVariant),
   };
 }
