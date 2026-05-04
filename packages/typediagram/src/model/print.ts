@@ -4,10 +4,22 @@ import { formatVariantName } from "../variant.js";
 export function printSource(model: Model): string {
   const out: string[] = ["typeDiagram", ""];
   for (const d of model.decls) {
+    out.push(...printTargeting(d));
     out.push(printDecl(d));
     out.push("");
   }
   return out.join("\n").replace(/\n+$/, "\n");
+}
+
+function printTargeting(d: ResolvedDecl): string[] {
+  const lines: string[] = [];
+  if (d.targeting?.targets !== undefined) {
+    lines.push(`@targets(${d.targeting.targets.join(", ")})`);
+  }
+  if (d.targeting?.skipTargets !== undefined) {
+    lines.push(`@skipTargets(${d.targeting.skipTargets.join(", ")})`);
+  }
+  return lines;
 }
 
 function printDecl(d: ResolvedDecl): string {

@@ -12,7 +12,7 @@
 // preserve the original nullability form in the model.
 import type { Diagnostic } from "../parser/diagnostics.js";
 import { type Result, err } from "../result.js";
-import { isTupleVariantFields, type Model, type ResolvedTypeRef, type ResolvedVariant } from "../model/types.js";
+import { isTupleVariantFields, type Model, type ResolvedTypeRef, type ResolvedVariant, visibleDeclsForTarget } from "../model/types.js";
 import { ModelBuilder, record, union, alias } from "../model/builder.js";
 import type { Converter } from "./types.js";
 import { parseTypeRef } from "./parse-typeref.js";
@@ -285,8 +285,9 @@ const mapUntaggedVariantToTs = (variant: ResolvedVariant): string => {
 
 const toTypeScript = (model: Model): string => {
   const lines: string[] = [];
+  const decls = visibleDeclsForTarget(model.decls, "typescript");
 
-  for (const d of model.decls) {
+  for (const d of decls) {
     const genericsStr = d.generics.length > 0 ? `<${d.generics.join(", ")}>` : "";
 
     if (d.kind === "record") {

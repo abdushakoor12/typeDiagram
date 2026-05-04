@@ -16,6 +16,7 @@ export { printSource } from "./print.js";
 export { validate } from "./validate.js";
 export {
   PRIMITIVES,
+  type DeclTargeting,
   type Edge,
   type EdgeKind,
   type Model,
@@ -27,4 +28,6 @@ export {
   type ResolvedTypeRef,
   type ResolvedUnion,
   type ResolvedVariant,
+  shouldEmitDeclToTarget,
+  visibleDeclsForTarget,
 } from "./types.js";

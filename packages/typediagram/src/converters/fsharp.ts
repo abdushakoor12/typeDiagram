@@ -1,7 +1,7 @@
 // [CONV-FS] F# <-> typeDiagram bidirectional converter.
 import type { Diagnostic } from "../parser/diagnostics.js";
 import { type Result, err } from "../result.js";
-import type { Model, ResolvedTypeRef } from "../model/types.js";
+import { type Model, type ResolvedTypeRef, visibleDeclsForTarget } from "../model/types.js";
 import { ModelBuilder, record, union, alias } from "../model/builder.js";
 import type { Converter } from "./types.js";
 import { parseTypeRef } from "./parse-typeref.js";
@@ -205,7 +205,7 @@ const mapTdToFs = (t: ResolvedTypeRef): string => {
 const toFSharp = (model: Model): string => {
   const lines: string[] = [];
 
-  for (const d of model.decls) {
+  for (const d of visibleDeclsForTarget(model.decls, "fsharp")) {
     const genericsStr = d.generics.length > 0 ? `<${d.generics.map((g) => `'${g}`).join(", ")}>` : "";
 
     if (d.kind === "record") {

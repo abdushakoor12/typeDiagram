@@ -86,6 +86,7 @@ function resolveRecord(
     name: d.name,
     generics: [...d.generics],
     fields: d.fields.map((f) => resolveField(f, d.name, declMap, externals, generics, bag)),
+    ...(d.targeting === undefined ? {} : { targeting: { ...d.targeting } }),
   };
 }
 
@@ -102,6 +103,7 @@ function resolveUnion(
     generics: [...d.generics],
     ...(d.untagged === true ? { untagged: true as const } : {}),
     variants: d.variants.map((v) => resolveVariant(v, d.name, declMap, externals, generics, bag)),
+    ...(d.targeting === undefined ? {} : { targeting: { ...d.targeting } }),
   };
 }
 
@@ -117,6 +119,7 @@ function resolveAlias(
     name: d.name,
     generics: [...d.generics],
     target: resolveTypeRef(d.target, d.name, declMap, externals, generics, bag),
+    ...(d.targeting === undefined ? {} : { targeting: { ...d.targeting } }),
   };
 }
 

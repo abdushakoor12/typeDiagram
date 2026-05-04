@@ -9,7 +9,7 @@
 // Option<T> <-> *T.  Generics use Go 1.18+ type parameters (`[T any]`).
 import type { Diagnostic } from "../parser/diagnostics.js";
 import { type Result, err } from "../result.js";
-import type { Model, ResolvedTypeRef } from "../model/types.js";
+import { type Model, type ResolvedTypeRef, visibleDeclsForTarget } from "../model/types.js";
 import { ModelBuilder, record, union, alias } from "../model/builder.js";
 import type { Converter } from "./types.js";
 import { parseTypeRef } from "./parse-typeref.js";
@@ -358,7 +358,7 @@ const variantStructName = (unionName: string, variantName: string): string => `$
 const toGo = (model: Model): string => {
   const lines: string[] = ["package types", ""];
 
-  for (const d of model.decls) {
+  for (const d of visibleDeclsForTarget(model.decls, "go")) {
     if (d.kind === "record") {
       const gens = goGenericsDecl(d.generics);
       lines.push(`type ${d.name}${gens} struct {`);

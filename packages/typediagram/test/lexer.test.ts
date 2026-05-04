@@ -60,9 +60,9 @@ describe("lexer", () => {
   });
 
   it("emits diagnostic on unexpected char and continues", () => {
-    const { tokens, diagnostics } = lex("type @ User");
+    const { tokens, diagnostics } = lex("type $ User");
     expect(diagnostics).toHaveLength(1);
-    expect(diagnostics[0]?.message).toContain("@");
+    expect(diagnostics[0]?.message).toContain("$");
     expect(tokens.map((t) => t.kind)).toEqual(["TypeKw", "Ident", "EOF"]);
   });
 

@@ -1,4 +1,4 @@
-import type { AliasDecl, Declaration, Diagram, Field, RecordDecl, Span, TypeRef, UnionDecl, Variant } from "./ast.js";
+import type { AliasDecl, DeclTargeting, Declaration, Diagram, Field, RecordDecl, Span, TypeRef, UnionDecl, Variant } from "./ast.js";
 import { DiagnosticBag } from "./diagnostics.js";
 import type { Token, TokenKind } from "./lexer.js";
 import { tokenize } from "./lexer.js";
@@ -76,12 +76,13 @@ class Parser {
   }
 
   private parseDeclaration(): Declaration | null {
+    const targeting = this.parseTargetingAnnotations();
     const t = this.cur.peek();
     if (t.kind === "TypeKw") {
-      return this.parseRecord();
+      return this.parseRecord(targeting);
     }
     if (t.kind === "UnionKw") {
-      return this.parseUnion();
+      return this.parseUnion(false, targeting);
     }
     if (t.kind === "UntaggedKw") {
       const next = this.cur.peek(1);
@@ -95,10 +96,10 @@ class Parser {
         this.recoverToTopLevel();
         return null;
       }
-      return this.parseUnion(true);
+      return this.parseUnion(true, targeting);
     }
     if (t.kind === "AliasKw") {
-      return this.parseAlias();
+      return this.parseAlias(targeting);
     }
     this.diags.error(
       `expected 'type', 'union', 'untagged union', or 'alias', got ${describe(t)}`,
@@ -110,7 +111,46 @@ class Parser {
     return null;
   }
 
-  private parseRecord(): RecordDecl | null {
+  private parseTargetingAnnotations(): DeclTargeting | undefined {
+    let targeting: DeclTargeting | undefined;
+    while (this.cur.peek().kind === "At") {
+      this.cur.next();
+      const nameTok = this.expect("Ident", "annotation name");
+      if (nameTok === null) {
+        return targeting;
+      }
+      if (this.expect("LParen", "'('") === null) {
+        return targeting;
+      }
+      const values: string[] = [];
+      while (this.cur.peek().kind !== "RParen" && this.cur.peek().kind !== "EOF") {
+        const valueTok = this.expect("Ident", "target name");
+        if (valueTok === null) {
+          break;
+        }
+        values.push(valueTok.value);
+        if (this.cur.peek().kind === "Comma") {
+          this.cur.next();
+        } else {
+          break;
+        }
+      }
+      this.expect("RParen", "')'");
+
+      targeting ??= {};
+      if (nameTok.value === "targets") {
+        targeting.targets = values;
+      } else if (nameTok.value === "skipTargets") {
+        targeting.skipTargets = values;
+      } else {
+        this.diags.error(`unknown annotation '@${nameTok.value}'`, nameTok.line, nameTok.col - 1, nameTok.length + 1);
+      }
+      this.cur.eatNewlines();
+    }
+    return targeting;
+  }
+
+  private parseRecord(targeting?: DeclTargeting): RecordDecl | null {
     const kw = this.cur.next(); // TypeKw
     const nameTok = this.expect("Ident", "type name");
     if (nameTok === null) {
@@ -129,11 +169,12 @@ class Parser {
       name: nameTok.value,
       generics,
       fields,
+      ...(targeting === undefined ? {} : { targeting }),
       span: spanBetween(kw, closeTok ?? kw),
     };
   }
 
-  private parseUnion(untagged = false): UnionDecl | null {
+  private parseUnion(untagged = false, targeting?: DeclTargeting): UnionDecl | null {
     const start = untagged ? this.cur.next() : this.cur.peek();
     const kw = this.cur.next();
     const nameTok = this.expect("Ident", "union name");
@@ -154,11 +195,12 @@ class Parser {
       generics,
       ...(untagged ? { untagged: true as const } : {}),
       variants,
+      ...(targeting === undefined ? {} : { targeting }),
       span: spanBetween(start, closeTok ?? kw),
     };
   }
 
-  private parseAlias(): AliasDecl | null {
+  private parseAlias(targeting?: DeclTargeting): AliasDecl | null {
     const kw = this.cur.next();
     const nameTok = this.expect("Ident", "alias name");
     if (nameTok === null) {
@@ -180,6 +222,7 @@ class Parser {
       name: nameTok.value,
       generics,
       target,
+      ...(targeting === undefined ? {} : { targeting }),
       span: spanBetween(kw, this.cur.peek()),
     };
   }

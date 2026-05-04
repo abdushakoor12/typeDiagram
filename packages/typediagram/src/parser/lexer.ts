@@ -14,6 +14,7 @@ export type TokenKind =
   | "RParen"
   | "LAngle"
   | "RAngle"
+  | "At"
   | "Comma"
   | "Colon"
   | "Equals"
@@ -44,6 +45,7 @@ const SINGLE_CHAR: Record<string, TokenKind> = {
   ")": "RParen",
   "<": "LAngle",
   ">": "RAngle",
+  "@": "At",
   ",": "Comma",
   ":": "Colon",
   "=": "Equals",
