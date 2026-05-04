@@ -304,6 +304,43 @@ untagged union Value {
     expect(output).toContain("  | { x: number; y: number };");
     expect(output).not.toContain("kind:");
   });
+
+  it("[CONV-TS-BUG-27] skips declarations gated away from the typescript target", () => {
+    const td = `
+@targets(rust)
+type JsonRpcError {
+  code: Int
+  message: String
+}
+
+type VisibleInTs {
+  ok: Bool
+}
+`;
+    const model = unwrap(buildModel(unwrap(parse(td))));
+    const output = typescript.toSource(model);
+
+    expect(output).not.toContain("export interface JsonRpcError");
+    expect(output).toContain("export interface VisibleInTs");
+  });
+
+  it("[CONV-TS-BUG-27] supports blacklisting the typescript target", () => {
+    const td = `
+@skipTargets(typescript, python)
+type RustOnlyErrorFrame {
+  data: String
+}
+
+type SharedFrame {
+  id: String
+}
+`;
+    const model = unwrap(buildModel(unwrap(parse(td))));
+    const output = typescript.toSource(model);
+
+    expect(output).not.toContain("export interface RustOnlyErrorFrame");
+    expect(output).toContain("export interface SharedFrame");
+  });
 });
 
 describe("[CONV-TS-RT] TypeScript round-trip TD -> TS -> TD", () => {
