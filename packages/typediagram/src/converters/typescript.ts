@@ -12,7 +12,13 @@
 // preserve the original nullability form in the model.
 import type { Diagnostic } from "../parser/diagnostics.js";
 import { type Result, err } from "../result.js";
-import { isTupleVariantFields, type Model, type ResolvedTypeRef, type ResolvedVariant, visibleDeclsForTarget } from "../model/types.js";
+import {
+  isTupleVariantFields,
+  type Model,
+  type ResolvedTypeRef,
+  type ResolvedVariant,
+  visibleDeclsForTarget,
+} from "../model/types.js";
 import { ModelBuilder, record, union, alias } from "../model/builder.js";
 import type { Converter } from "./types.js";
 import { parseTypeRef } from "./parse-typeref.js";

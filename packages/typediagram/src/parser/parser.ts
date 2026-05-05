@@ -1,4 +1,15 @@
-import type { AliasDecl, DeclTargeting, Declaration, Diagram, Field, RecordDecl, Span, TypeRef, UnionDecl, Variant } from "./ast.js";
+import type {
+  AliasDecl,
+  DeclTargeting,
+  Declaration,
+  Diagram,
+  Field,
+  RecordDecl,
+  Span,
+  TypeRef,
+  UnionDecl,
+  Variant,
+} from "./ast.js";
 import { DiagnosticBag } from "./diagnostics.js";
 import type { Token, TokenKind } from "./lexer.js";
 import { tokenize } from "./lexer.js";

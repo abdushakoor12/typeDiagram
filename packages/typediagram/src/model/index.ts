@@ -28,6 +28,4 @@ export {
   type ResolvedTypeRef,
   type ResolvedUnion,
   type ResolvedVariant,
-  shouldEmitDeclToTarget,
-  visibleDeclsForTarget,
 } from "./types.js";

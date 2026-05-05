@@ -88,10 +88,12 @@ export function shouldEmitDeclToTarget(decl: { targeting?: DeclTargeting }, targ
   if (whitelist !== undefined && whitelist.length > 0 && !whitelist.includes(target)) {
     return false;
   }
-  const blacklist = decl.targeting?.skipTargets;
-  return !(blacklist !== undefined && blacklist.includes(target));
+  return decl.targeting?.skipTargets?.includes(target) !== true;
 }
 
-export function visibleDeclsForTarget<T extends { targeting?: DeclTargeting }>(decls: readonly T[], target: string): T[] {
+export function visibleDeclsForTarget<T extends { targeting?: DeclTargeting }>(
+  decls: readonly T[],
+  target: string
+): T[] {
   return decls.filter((decl) => shouldEmitDeclToTarget(decl, target));
 }

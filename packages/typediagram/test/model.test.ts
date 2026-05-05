@@ -9,12 +9,11 @@ import {
   printSource,
   record,
   ref,
-  shouldEmitDeclToTarget,
   toJSON,
   union,
   validate,
-  visibleDeclsForTarget,
 } from "../src/model/index.js";
+import { shouldEmitDeclToTarget, visibleDeclsForTarget } from "../src/model/types.js";
 import { CHAT_EXAMPLE, SMALL_EXAMPLE } from "./fixtures.js";
 
 function unwrap<T>(r: { ok: true; value: T } | { ok: false; error: unknown }): T {
