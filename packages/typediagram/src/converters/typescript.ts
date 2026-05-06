@@ -12,7 +12,13 @@
 // preserve the original nullability form in the model.
 import type { Diagnostic } from "../parser/diagnostics.js";
 import { type Result, err } from "../result.js";
-import type { Model, ResolvedTypeRef } from "../model/types.js";
+import {
+  isTupleVariantFields,
+  type Model,
+  type ResolvedTypeRef,
+  type ResolvedVariant,
+  visibleDeclsForTarget,
+} from "../model/types.js";
 import { ModelBuilder, record, union, alias } from "../model/builder.js";
 import type { Converter } from "./types.js";
 import { parseTypeRef } from "./parse-typeref.js";
@@ -269,10 +275,25 @@ const mapTdToTs = (t: ResolvedTypeRef): string => {
   return t.args.length === 0 ? name : `${name}<${t.args.map(mapTdToTs).join(", ")}>`;
 };
 
+const mapUntaggedVariantToTs = (variant: ResolvedVariant): string => {
+  if (variant.fields.length === 0) {
+    return "undefined";
+  }
+  if (isTupleVariantFields(variant.fields)) {
+    if (variant.fields.length === 1) {
+      const [field] = variant.fields;
+      return field === undefined ? "undefined" : mapTdToTs(field.type);
+    }
+    return `[${variant.fields.map((field) => mapTdToTs(field.type)).join(", ")}]`;
+  }
+  return `{ ${variant.fields.map((field) => `${field.name}: ${mapTdToTs(field.type)}`).join("; ")} }`;
+};
+
 const toTypeScript = (model: Model): string => {
   const lines: string[] = [];
+  const decls = visibleDeclsForTarget(model.decls, "typescript");
 
-  for (const d of model.decls) {
+  for (const d of decls) {
     const genericsStr = d.generics.length > 0 ? `<${d.generics.join(", ")}>` : "";
 
     if (d.kind === "record") {
@@ -282,12 +303,15 @@ const toTypeScript = (model: Model): string => {
       }
       lines.push("}", "");
     } else if (d.kind === "union") {
-      const variants = d.variants.map((v) => {
-        if (v.fields.length === 0) {
-          return `{ kind: "${v.name}" }`;
-        }
-        return `{ kind: "${v.name}"; ${v.fields.map((f) => `${f.name}: ${mapTdToTs(f.type)}`).join("; ")} }`;
-      });
+      const variants =
+        d.untagged === true
+          ? d.variants.map(mapUntaggedVariantToTs)
+          : d.variants.map((v) => {
+              if (v.fields.length === 0) {
+                return `{ kind: "${v.name}" }`;
+              }
+              return `{ kind: "${v.name}"; ${v.fields.map((f) => `${f.name}: ${mapTdToTs(f.type)}`).join("; ")} }`;
+            });
       lines.push(`export type ${d.name}${genericsStr} =`, `  | ${variants.join("\n  | ")};`, "");
     } else {
       lines.push(`export type ${d.name}${genericsStr} = ${mapTdToTs(d.target)};`, "");

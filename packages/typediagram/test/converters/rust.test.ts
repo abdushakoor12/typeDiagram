@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { rust } from "../../src/converters/index.js";
 import { parse } from "../../src/parser/index.js";
-import { buildModel } from "../../src/model/index.js";
+import { buildModel, printSource } from "../../src/model/index.js";
 import { expectLosslessRoundTrip, unwrap } from "./helpers.js";
 
 describe("[CONV-RUST-FROM-COMPLEX] complex Rust -> typeDiagram", () => {
@@ -224,6 +224,27 @@ alias Lookup<K, V> = Map<K, V>
     expect(output).toContain("pub type Lookup<K, V> = HashMap<K, V>");
   });
 
+  it("preserves explicit numeric discriminants on enum variants", () => {
+    const td = `
+union ErrorCode {
+  ParseError = -32700
+  InvalidRequest = -32600
+  MethodNotFound = -32601
+}
+`;
+    const model = unwrap(buildModel(unwrap(parse(td))));
+    const output = rust.toSource(model);
+
+    expect(output).toContain("ParseError = -32700,");
+    expect(output).toContain("InvalidRequest = -32600,");
+    expect(output).toContain("MethodNotFound = -32601,");
+
+    const roundTrip = unwrap(rust.fromSource(output));
+    expect(printSource(roundTrip)).toContain("ParseError = -32700");
+    expect(printSource(roundTrip)).toContain("InvalidRequest = -32600");
+    expect(printSource(roundTrip)).toContain("MethodNotFound = -32601");
+  });
+
   it("emits tuple enum variants from tuple-form union syntax", () => {
     const td = `
 union RequestId {
@@ -234,6 +255,22 @@ union RequestId {
     const model = unwrap(buildModel(unwrap(parse(td))));
     const output = rust.toSource(model);
 
+    expect(output).toContain("pub enum RequestId");
+    expect(output).toContain("Number(i64)");
+    expect(output).toContain("String(String)");
+  });
+
+  it("emits serde untagged enums from untagged union syntax", () => {
+    const td = `
+untagged union RequestId {
+  Number(Int)
+  String(String)
+}
+`;
+    const model = unwrap(buildModel(unwrap(parse(td))));
+    const output = rust.toSource(model);
+
+    expect(output).toContain("#[serde(untagged)]");
     expect(output).toContain("pub enum RequestId");
     expect(output).toContain("Number(i64)");
     expect(output).toContain("String(String)");

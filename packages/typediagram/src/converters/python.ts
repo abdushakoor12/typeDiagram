@@ -10,7 +10,7 @@
 // convenience emitter for downstream use.
 import type { Diagnostic } from "../parser/diagnostics.js";
 import { type Result, err } from "../result.js";
-import type { Model, ResolvedDecl, ResolvedTypeRef } from "../model/types.js";
+import { type Model, type ResolvedDecl, type ResolvedTypeRef, visibleDeclsForTarget } from "../model/types.js";
 import { ModelBuilder, record, union, alias } from "../model/builder.js";
 import type { Converter, PythonOpts } from "./types.js";
 import { parseTypeRef } from "./parse-typeref.js";
@@ -325,7 +325,7 @@ const declUsesAny = (d: ResolvedDecl): boolean =>
       ? d.variants.some((v) => v.fields.some((f) => usesAny(f.type)))
       : usesAny(d.target);
 
-const modelUsesAny = (model: Model): boolean => model.decls.some(declUsesAny);
+const modelUsesAny = (decls: readonly ResolvedDecl[]): boolean => decls.some(declUsesAny);
 
 const mapTdToPyDataclass = (t: ResolvedTypeRef): string => {
   const name = TD_TO_PY[t.name] ?? t.name;
@@ -361,44 +361,44 @@ const pydanticFieldSuffix = (t: ResolvedTypeRef): string =>
         ? " = Field(default_factory=dict)"
         : "";
 
-const needsDataclassField = (model: Model): boolean =>
-  model.decls.some(
+const needsDataclassField = (decls: readonly ResolvedDecl[]): boolean =>
+  decls.some(
     (d) =>
       (d.kind === "record" && d.fields.some((f) => isList(f.type) || isMap(f.type))) ||
       (d.kind === "union" && d.variants.some((v) => v.fields.some((f) => isList(f.type) || isMap(f.type))))
   );
 
-const hasBareEnum = (model: Model): boolean =>
-  model.decls.some((d) => d.kind === "union" && d.variants.every((v) => v.fields.length === 0));
+const hasBareEnum = (decls: readonly ResolvedDecl[]): boolean =>
+  decls.some((d) => d.kind === "union" && d.variants.every((v) => v.fields.length === 0));
 
-const hasOption = (model: Model): boolean =>
-  model.decls.some(
+const hasOption = (decls: readonly ResolvedDecl[]): boolean =>
+  decls.some(
     (d) =>
       (d.kind === "record" && d.fields.some((f) => isOption(f.type))) ||
       (d.kind === "union" && d.variants.some((v) => v.fields.some((f) => isOption(f.type)))) ||
       (d.kind === "alias" && isOption(d.target))
   );
 
-const hasGenerics = (model: Model): boolean => model.decls.some((d) => d.generics.length > 0);
+const hasGenerics = (decls: readonly ResolvedDecl[]): boolean => decls.some((d) => d.generics.length > 0);
 
-const buildDataclassImports = (model: Model): string[] => {
+const buildDataclassImports = (decls: readonly ResolvedDecl[]): string[] => {
   const lines = ["from __future__ import annotations"];
   const dataclassImports = ["dataclass"];
-  if (needsDataclassField(model)) {
+  if (needsDataclassField(decls)) {
     dataclassImports.push("field");
   }
   lines.push(`from dataclasses import ${dataclassImports.join(", ")}`);
-  if (hasBareEnum(model)) {
+  if (hasBareEnum(decls)) {
     lines.push("from enum import Enum");
   }
   const typingNames: string[] = [];
-  if (hasOption(model)) {
+  if (hasOption(decls)) {
     typingNames.push("Optional");
   }
-  if (modelUsesAny(model)) {
+  if (modelUsesAny(decls)) {
     typingNames.push("Any");
   }
-  if (hasGenerics(model)) {
+  if (hasGenerics(decls)) {
     typingNames.push("Generic", "TypeVar");
   }
   if (typingNames.length > 0) {
@@ -406,7 +406,7 @@ const buildDataclassImports = (model: Model): string[] => {
   }
   // Declare the TypeVars used across the model so `Generic[T]` resolves.
   const typeVars = new Set<string>();
-  for (const d of model.decls) {
+  for (const d of decls) {
     for (const g of d.generics) {
       typeVars.add(g);
     }
@@ -420,9 +420,9 @@ const buildDataclassImports = (model: Model): string[] => {
   return lines;
 };
 
-const buildPydanticImports = (model: Model): string[] => {
+const buildPydanticImports = (decls: readonly ResolvedDecl[]): string[] => {
   const lines = ["from __future__ import annotations", "from pydantic import BaseModel"];
-  const hasCollections = model.decls.some(
+  const hasCollections = decls.some(
     (d) =>
       (d.kind === "record" && d.fields.some((f) => isList(f.type) || isMap(f.type))) ||
       (d.kind === "union" && d.variants.some((v) => v.fields.some((f) => isList(f.type) || isMap(f.type))))
@@ -430,10 +430,10 @@ const buildPydanticImports = (model: Model): string[] => {
   if (hasCollections) {
     lines.push("from pydantic import Field");
   }
-  if (hasBareEnum(model)) {
+  if (hasBareEnum(decls)) {
     lines.push("from enum import Enum");
   }
-  if (modelUsesAny(model)) {
+  if (modelUsesAny(decls)) {
     lines.push("from typing import Any");
   }
   lines.push("");
@@ -487,10 +487,11 @@ const emitBareEnum = (name: string, variants: readonly { name: string }[]): stri
 
 const toPython = (model: Model, opts?: PythonOpts): string => {
   const pydantic = opts?.style === "pydantic";
-  const lines: string[] = pydantic ? buildPydanticImports(model) : buildDataclassImports(model);
+  const decls = visibleDeclsForTarget(model.decls, "python");
+  const lines: string[] = pydantic ? buildPydanticImports(decls) : buildDataclassImports(decls);
   const emitRecord = pydantic ? emitPydanticRecord : emitDataclassRecord;
 
-  for (const d of model.decls) {
+  for (const d of decls) {
     if (d.kind === "record") {
       lines.push(...emitRecord(d.name, d.fields, d.generics), "");
     } else if (d.kind === "union") {

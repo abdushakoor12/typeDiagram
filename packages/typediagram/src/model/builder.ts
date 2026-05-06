@@ -1,5 +1,6 @@
 import type { Diagnostic } from "../parser/diagnostics.js";
 import { type Result, err, ok } from "../result.js";
+import { withDiscriminant } from "../variant.js";
 import { validate } from "./validate.js";
 import {
   PRIMITIVES,
@@ -21,7 +22,12 @@ export interface FieldSpec {
 
 export interface VariantSpec {
   name: string;
+  discriminant?: string;
   fields?: FieldSpec[];
+}
+
+export interface UnionSpec {
+  untagged?: boolean;
 }
 
 /** Build a TypeRef. Resolution is deferred to validate(). */
@@ -33,11 +39,12 @@ export function record(name: string, fields: FieldSpec[], generics: string[] = [
   return { kind: "record", name, generics, fields: fields.map(toField) };
 }
 
-export function union(name: string, variants: VariantSpec[], generics: string[] = []): ResolvedUnion {
+export function union(name: string, variants: VariantSpec[], generics: string[] = [], spec?: UnionSpec): ResolvedUnion {
   return {
     kind: "union",
     name,
     generics,
+    ...(spec?.untagged === true ? { untagged: true as const } : {}),
     variants: variants.map(toVariant),
   };
 }
@@ -51,7 +58,13 @@ function toField(f: FieldSpec): ResolvedField {
 }
 
 function toVariant(v: VariantSpec): ResolvedVariant {
-  return { name: v.name, fields: (v.fields ?? []).map(toField) };
+  return withDiscriminant<ResolvedVariant>(
+    {
+      name: v.name,
+      fields: (v.fields ?? []).map(toField),
+    },
+    v.discriminant
+  );
 }
 
 export class ModelBuilder {
@@ -120,10 +133,15 @@ export function resolveResolutions(model: Model): Model {
     if (d.kind === "union") {
       return {
         ...d,
-        variants: d.variants.map((v) => ({
-          name: v.name,
-          fields: v.fields.map((f) => ({ name: f.name, type: fixRef(f.type, generics, d.name) })),
-        })),
+        variants: d.variants.map((v) =>
+          withDiscriminant<ResolvedVariant>(
+            {
+              name: v.name,
+              fields: v.fields.map((f) => ({ name: f.name, type: fixRef(f.type, generics, d.name) })),
+            },
+            v.discriminant
+          )
+        ),
       };
     }
     return { ...d, target: fixRef(d.target, generics, d.name) };

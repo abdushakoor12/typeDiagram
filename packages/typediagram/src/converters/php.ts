@@ -1,7 +1,7 @@
 // [CONV-PHP] PHP DTO <-> typeDiagram bidirectional converter.
 import type { Diagnostic } from "../parser/diagnostics.js";
 import { type Result, err } from "../result.js";
-import type { Model, ResolvedTypeRef } from "../model/types.js";
+import { type Model, type ResolvedTypeRef, visibleDeclsForTarget } from "../model/types.js";
 import { ModelBuilder, alias, record, union } from "../model/builder.js";
 import type { Converter } from "./types.js";
 import { parseTypeRef } from "./parse-typeref.js";
@@ -315,7 +315,7 @@ const renderAlias = (name: string, generics: readonly string[], target: Resolved
 };
 
 const toPhp = (model: Model): string => {
-  const blocks = model.decls.flatMap((decl) => {
+  const blocks = visibleDeclsForTarget(model.decls, "php").flatMap((decl) => {
     if (decl.kind === "record") {
       return [renderRecord(decl.name, decl.generics, decl.fields)];
     }

@@ -1,12 +1,25 @@
 import { isTupleVariantFields, type Model, type ResolvedDecl, type ResolvedTypeRef } from "./types.js";
+import { formatVariantName } from "../variant.js";
 
 export function printSource(model: Model): string {
   const out: string[] = ["typeDiagram", ""];
   for (const d of model.decls) {
+    out.push(...printTargeting(d));
     out.push(printDecl(d));
     out.push("");
   }
   return out.join("\n").replace(/\n+$/, "\n");
+}
+
+function printTargeting(d: ResolvedDecl): string[] {
+  const lines: string[] = [];
+  if (d.targeting?.targets !== undefined) {
+    lines.push(`@targets(${d.targeting.targets.join(", ")})`);
+  }
+  if (d.targeting?.skipTargets !== undefined) {
+    lines.push(`@skipTargets(${d.targeting.skipTargets.join(", ")})`);
+  }
+  return lines;
 }
 
 function printDecl(d: ResolvedDecl): string {
@@ -18,17 +31,18 @@ function printDecl(d: ResolvedDecl): string {
   if (d.kind === "union") {
     const variants = d.variants
       .map((v) => {
+        const head = formatVariantName(v.name, v.discriminant);
         if (v.fields.length === 0) {
-          return `  ${v.name}`;
+          return `  ${head}`;
         }
         if (isTupleVariantFields(v.fields)) {
-          return `  ${v.name}(${v.fields.map((f) => printRef(f.type)).join(", ")})`;
+          return `  ${head}(${v.fields.map((f) => printRef(f.type)).join(", ")})`;
         }
         const inner = v.fields.map((f) => `${f.name}: ${printRef(f.type)}`).join(", ");
-        return `  ${v.name} { ${inner} }`;
+        return `  ${head} { ${inner} }`;
       })
       .join("\n");
-    return `union ${d.name}${generics} {\n${variants}\n}`;
+    return `${d.untagged === true ? "untagged union" : "union"} ${d.name}${generics} {\n${variants}\n}`;
   }
   return `alias ${d.name}${generics} = ${printRef(d.target)}`;
 }

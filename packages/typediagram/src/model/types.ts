@@ -8,18 +8,26 @@ export interface Model {
 
 export type ResolvedDecl = ResolvedRecord | ResolvedUnion | ResolvedAlias;
 
+export interface DeclTargeting {
+  targets?: string[];
+  skipTargets?: string[];
+}
+
 export interface ResolvedRecord {
   kind: "record";
   name: string;
   generics: string[];
   fields: ResolvedField[];
+  targeting?: DeclTargeting;
 }
 
 export interface ResolvedUnion {
   kind: "union";
   name: string;
   generics: string[];
+  untagged?: true;
   variants: ResolvedVariant[];
+  targeting?: DeclTargeting;
 }
 
 export interface ResolvedAlias {
@@ -27,6 +35,7 @@ export interface ResolvedAlias {
   name: string;
   generics: string[];
   target: ResolvedTypeRef;
+  targeting?: DeclTargeting;
 }
 
 export interface ResolvedField {
@@ -36,6 +45,7 @@ export interface ResolvedField {
 
 export interface ResolvedVariant {
   name: string;
+  discriminant?: string;
   fields: ResolvedField[];
 }
 
@@ -71,4 +81,19 @@ export interface Edge {
   /** Display label (field name, variant name, etc.). */
   label: string;
   kind: EdgeKind;
+}
+
+export function shouldEmitDeclToTarget(decl: { targeting?: DeclTargeting }, target: string): boolean {
+  const whitelist = decl.targeting?.targets;
+  if (whitelist !== undefined && whitelist.length > 0 && !whitelist.includes(target)) {
+    return false;
+  }
+  return decl.targeting?.skipTargets?.includes(target) !== true;
+}
+
+export function visibleDeclsForTarget<T extends { targeting?: DeclTargeting }>(
+  decls: readonly T[],
+  target: string
+): T[] {
+  return decls.filter((decl) => shouldEmitDeclToTarget(decl, target));
 }

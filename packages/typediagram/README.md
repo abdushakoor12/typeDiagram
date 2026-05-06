@@ -49,6 +49,16 @@ Three constructs:
 
 Generics with `<T>`. Comments with `#`.
 
+Explicit numeric discriminants are supported on union variants:
+
+```td
+union ErrorCode {
+  ParseError = -32700
+  InvalidRequest = -32600
+  MethodNotFound = -32601
+}
+```
+
 ## Subpath exports
 
 - `typediagram-core` — high-level `parse`, `layout`, `renderSvg`

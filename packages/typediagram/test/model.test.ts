@@ -13,6 +13,7 @@ import {
   union,
   validate,
 } from "../src/model/index.js";
+import { shouldEmitDeclToTarget, visibleDeclsForTarget } from "../src/model/types.js";
 import { CHAT_EXAMPLE, SMALL_EXAMPLE } from "./fixtures.js";
 
 function unwrap<T>(r: { ok: true; value: T } | { ok: false; error: unknown }): T {
@@ -214,6 +215,49 @@ describe("model — JSON round-trip", () => {
     expect(toJSON(back)).toEqual(json);
   });
 
+  it("preserves untagged unions through printSource and JSON", () => {
+    const model = unwrap(
+      buildModel(
+        unwrap(
+          parse(`
+untagged union RequestId {
+  Number(Int)
+  String(String)
+}
+`)
+        )
+      )
+    );
+
+    const requestId = model.decls.find((decl) => decl.name === "RequestId");
+    expect(requestId?.kind).toBe("union");
+    expect(requestId?.kind === "union" ? requestId.untagged : undefined).toBe(true);
+    expect(printSource(model)).toContain("untagged union RequestId");
+
+    const roundTrip = unwrap(fromJSON(toJSON(model)));
+    const requestIdRoundTrip = roundTrip.decls.find((decl) => decl.name === "RequestId");
+    expect(requestIdRoundTrip?.kind).toBe("union");
+    expect(requestIdRoundTrip?.kind === "union" ? requestIdRoundTrip.untagged : undefined).toBe(true);
+  });
+
+  it("preserves declaration target gating through printSource and JSON", () => {
+    const td = `
+@targets(rust)
+@skipTargets(typescript)
+type JsonRpcError {
+  code: Int
+}
+`;
+    const model = unwrap(buildModel(unwrap(parse(td))));
+    expect(printSource(model)).toContain("@targets(rust)");
+    expect(printSource(model)).toContain("@skipTargets(typescript)");
+
+    const roundTrip = unwrap(fromJSON(toJSON(model)));
+    const decl = roundTrip.decls.find((entry) => entry.name === "JsonRpcError");
+    expect(decl?.targeting?.targets).toEqual(["rust"]);
+    expect(decl?.targeting?.skipTargets).toEqual(["typescript"]);
+  });
+
   it("rejects wrong schema version", () => {
     const r = fromJSON({ version: 99, decls: [] });
     expect(r.ok).toBe(false);
@@ -331,6 +375,40 @@ describe("model — JSON edge cases", () => {
     expect(r.ok).toBe(false);
   });
 
+  it("rejects non-object targeting JSON", () => {
+    const r = fromJSON({
+      version: 1,
+      decls: [{ kind: "record", name: "X", generics: [], fields: [], targeting: "rust" }],
+    });
+    expect(r.ok).toBe(false);
+  });
+
+  it("rejects non-string targeting arrays", () => {
+    const badTargets = fromJSON({
+      version: 1,
+      decls: [{ kind: "record", name: "X", generics: [], fields: [], targeting: { targets: [1] } }],
+    });
+    const badSkipTargets = fromJSON({
+      version: 1,
+      decls: [{ kind: "record", name: "X", generics: [], fields: [], targeting: { skipTargets: [false] } }],
+    });
+    expect(badTargets.ok).toBe(false);
+    expect(badSkipTargets.ok).toBe(false);
+  });
+
+  it("rejects invalid targeting JSON on unions and aliases", () => {
+    const badUnion = fromJSON({
+      version: 1,
+      decls: [{ kind: "union", name: "X", generics: [], variants: [], targeting: { targets: [1] } }],
+    });
+    const badAlias = fromJSON({
+      version: 1,
+      decls: [{ kind: "alias", name: "X", generics: [], target: { name: "String", args: [] }, targeting: null }],
+    });
+    expect(badUnion.ok).toBe(false);
+    expect(badAlias.ok).toBe(false);
+  });
+
   it("round-trips alias JSON", () => {
     const td = `alias Email = String`;
     const model = unwrap(buildModel(unwrap(parse(td))));
@@ -347,6 +425,45 @@ describe("model — build alias edges", () => {
     const model = unwrap(buildModel(ast));
     const e = model.edges.find((x) => x.sourceDeclName === "Usr" && x.targetDeclName === "User");
     expect(e).toBeDefined();
+  });
+});
+
+describe("model — target visibility helpers", () => {
+  it("applies whitelist and blacklist rules", () => {
+    expect(shouldEmitDeclToTarget({ targeting: { targets: ["rust"] } }, "typescript")).toBe(false);
+    expect(shouldEmitDeclToTarget({ targeting: { skipTargets: ["typescript"] } }, "typescript")).toBe(false);
+    expect(shouldEmitDeclToTarget({ targeting: { targets: [] } }, "typescript")).toBe(true);
+    expect(shouldEmitDeclToTarget({}, "typescript")).toBe(true);
+  });
+
+  it("filters declarations for a specific target", () => {
+    const model = unwrap(
+      buildModel(
+        unwrap(
+          parse(`
+@targets(rust)
+type RustOnly {
+  code: Int
+}
+
+@skipTargets(typescript)
+type AlsoHidden {
+  code: Int
+}
+
+type Shared {
+  ok: Bool
+}
+`)
+        )
+      )
+    );
+    expect(visibleDeclsForTarget(model.decls, "typescript").map((decl) => decl.name)).toEqual(["Shared"]);
+    expect(visibleDeclsForTarget(model.decls, "rust").map((decl) => decl.name)).toEqual([
+      "RustOnly",
+      "AlsoHidden",
+      "Shared",
+    ]);
   });
 });
 

@@ -17,11 +17,11 @@
 //     parser prefers over the proto field type, guaranteeing round-trip.
 import type { Diagnostic } from "../parser/diagnostics.js";
 import { type Result, err } from "../result.js";
-import type { Model, ResolvedTypeRef } from "../model/types.js";
+import { type Model, type ResolvedTypeRef, visibleDeclsForTarget } from "../model/types.js";
 import { ModelBuilder, record, union, alias } from "../model/builder.js";
 import type { Converter } from "./types.js";
 import { parseTypeRef, printTypeRef } from "./parse-typeref.js";
-import { extractBalancedBlock, splitTopLevelCommas } from "./brace-lang.js";
+import { extractBalancedBlock } from "./brace-lang.js";
 
 // ── Type mapping ──
 
@@ -434,7 +434,7 @@ const emitUnion = (
 
 const toProto = (model: Model): string => {
   const lines: string[] = ['syntax = "proto3";', ""];
-  for (const d of model.decls) {
+  for (const d of visibleDeclsForTarget(model.decls, "protobuf")) {
     if (d.kind === "record") {
       lines.push(...emitGenericsDirective(d.generics, ""));
       lines.push(`message ${d.name} {`);
@@ -451,11 +451,6 @@ const toProto = (model: Model): string => {
   }
   return lines.join("\n").replace(/\n+$/, "\n");
 };
-
-// splitTopLevelCommas is used via the shared helper when parsing generic
-// argument lists inside `@td-type:` directives. Re-export by using the
-// import so tree-shaking doesn't complain.
-void splitTopLevelCommas;
 
 export const protobuf: Converter = {
   language: "protobuf",

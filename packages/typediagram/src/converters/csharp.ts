@@ -8,7 +8,7 @@
 // Option<T> <-> T?. Alias <-> `using X = Y;`.
 import type { Diagnostic } from "../parser/diagnostics.js";
 import { type Result, err } from "../result.js";
-import type { Model, ResolvedTypeRef } from "../model/types.js";
+import { type Model, type ResolvedTypeRef, visibleDeclsForTarget } from "../model/types.js";
 import { ModelBuilder, record, union, alias } from "../model/builder.js";
 import type { Converter } from "./types.js";
 import { parseTypeRef } from "./parse-typeref.js";
@@ -325,7 +325,7 @@ const toCSharp = (model: Model): string => {
   // file scope wherever it appears, so keeping aliases in source order
   // preserves round-trip order at the cost of the more idiomatic
   // "usings-at-top" layout.
-  for (const d of model.decls) {
+  for (const d of visibleDeclsForTarget(model.decls, "csharp")) {
     if (d.kind === "record") {
       lines.push(...emitRecord(d.name, d.fields, d.generics), "");
     } else if (d.kind === "union") {

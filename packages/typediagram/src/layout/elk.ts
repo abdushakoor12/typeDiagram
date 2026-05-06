@@ -8,7 +8,8 @@ import {
   type ResolvedDecl,
   type ResolvedTypeRef,
 } from "../model/types.js";
-import { measureBlock, measureText } from "./measure.js";
+import { formatVariantName } from "../variant.js";
+import { measureText } from "./measure.js";
 import type { EdgeRoute, LaidOutGraph, LayoutOpts, NodeBox, NodeRow } from "./types.js";
 
 const DEFAULT_FONT_SIZE = 13;
@@ -124,12 +125,13 @@ function buildPreNodes(decls: ResolvedDecl[], fontSize: number, padX: number, pa
       }
     } else if (d.kind === "union") {
       for (const v of d.variants) {
+        const head = formatVariantName(v.name, v.discriminant);
         const variantHeader =
           v.fields.length === 0
-            ? v.name
+            ? head
             : isTupleVariantFields(v.fields)
-              ? `${v.name}(${v.fields.map((f) => printRefShort(f.type)).join(", ")})`
-              : `${v.name} { ${v.fields.map((f) => rowText(f.name, f.type)).join(", ")} }`;
+              ? `${head}(${v.fields.map((f) => printRefShort(f.type)).join(", ")})`
+              : `${head} { ${v.fields.map((f) => rowText(f.name, f.type)).join(", ")} }`;
         const m = measureText(variantHeader, fontSize);
         if (m.w > widest) {
           widest = m.w;
@@ -152,8 +154,6 @@ function buildPreNodes(decls: ResolvedDecl[], fontSize: number, padX: number, pa
     out.push({ id: d.name, decl: d, header, rows, width, height });
   }
 
-  // suppress unused-var warning
-  void measureBlock;
   return out;
 }
 

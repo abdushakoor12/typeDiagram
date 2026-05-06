@@ -269,6 +269,78 @@ alias Wrapper<T> = List<T>
     expect(output.indexOf("ChatRequest")).toBeLessThan(output.indexOf("ToolResult"));
     expect(output.indexOf("ToolResult")).toBeLessThan(output.indexOf("GenericBox"));
   });
+
+  it("emits untagged tuple unions as plain TypeScript unions", () => {
+    const td = `
+untagged union RequestId {
+  Number(Int)
+  String(String)
+}
+`;
+    const model = unwrap(buildModel(unwrap(parse(td))));
+    const output = typescript.toSource(model);
+
+    expect(output).toContain("export type RequestId =");
+    expect(output).toContain("  | number");
+    expect(output).toContain("  | string;");
+    expect(output).not.toContain('kind: "Number"');
+    expect(output).not.toContain('kind: "String"');
+  });
+
+  it("emits remaining untagged payload shapes without discriminator fields", () => {
+    const td = `
+untagged union Value {
+  Empty
+  Pair(Int, String)
+  Point { x: Int, y: Int }
+}
+`;
+    const model = unwrap(buildModel(unwrap(parse(td))));
+    const output = typescript.toSource(model);
+
+    expect(output).toContain("export type Value =");
+    expect(output).toContain("  | undefined");
+    expect(output).toContain("  | [number, string]");
+    expect(output).toContain("  | { x: number; y: number };");
+    expect(output).not.toContain("kind:");
+  });
+
+  it("[CONV-TS-BUG-27] skips declarations gated away from the typescript target", () => {
+    const td = `
+@targets(rust)
+type JsonRpcError {
+  code: Int
+  message: String
+}
+
+type VisibleInTs {
+  ok: Bool
+}
+`;
+    const model = unwrap(buildModel(unwrap(parse(td))));
+    const output = typescript.toSource(model);
+
+    expect(output).not.toContain("export interface JsonRpcError");
+    expect(output).toContain("export interface VisibleInTs");
+  });
+
+  it("[CONV-TS-BUG-27] supports blacklisting the typescript target", () => {
+    const td = `
+@skipTargets(typescript, python)
+type RustOnlyErrorFrame {
+  data: String
+}
+
+type SharedFrame {
+  id: String
+}
+`;
+    const model = unwrap(buildModel(unwrap(parse(td))));
+    const output = typescript.toSource(model);
+
+    expect(output).not.toContain("export interface RustOnlyErrorFrame");
+    expect(output).toContain("export interface SharedFrame");
+  });
 });
 
 describe("[CONV-TS-RT] TypeScript round-trip TD -> TS -> TD", () => {

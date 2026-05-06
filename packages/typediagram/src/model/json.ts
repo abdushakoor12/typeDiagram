@@ -1,7 +1,8 @@
 import type { Diagnostic } from "../parser/diagnostics.js";
 import { type Result, err, ok } from "../result.js";
+import { withDiscriminant } from "../variant.js";
 import { resolveResolutions } from "./builder.js";
-import type { Model, ResolvedDecl, ResolvedTypeRef } from "./types.js";
+import type { DeclTargeting, Model, ResolvedDecl, ResolvedTypeRef, ResolvedVariant } from "./types.js";
 
 export const SCHEMA_VERSION = 1;
 
@@ -17,18 +18,22 @@ export interface RecordJson {
   name: string;
   generics: string[];
   fields: FieldJson[];
+  targeting?: DeclTargeting;
 }
 export interface UnionJson {
   kind: "union";
   name: string;
   generics: string[];
+  untagged?: true;
   variants: VariantJson[];
+  targeting?: DeclTargeting;
 }
 export interface AliasJson {
   kind: "alias";
   name: string;
   generics: string[];
   target: TypeRefJson;
+  targeting?: DeclTargeting;
 }
 export interface FieldJson {
   name: string;
@@ -36,6 +41,7 @@ export interface FieldJson {
 }
 export interface VariantJson {
   name: string;
+  discriminant?: string;
   fields: FieldJson[];
 }
 export interface TypeRefJson {
@@ -57,6 +63,7 @@ function declToJson(d: ResolvedDecl): DeclJson {
       name: d.name,
       generics: [...d.generics],
       fields: d.fields.map((f) => ({ name: f.name, type: refToJson(f.type) })),
+      ...(d.targeting === undefined ? {} : { targeting: { ...d.targeting } }),
     };
   }
   if (d.kind === "union") {
@@ -64,10 +71,17 @@ function declToJson(d: ResolvedDecl): DeclJson {
       kind: "union",
       name: d.name,
       generics: [...d.generics],
-      variants: d.variants.map((v) => ({
-        name: v.name,
-        fields: v.fields.map((f) => ({ name: f.name, type: refToJson(f.type) })),
-      })),
+      ...(d.untagged === true ? { untagged: true as const } : {}),
+      ...(d.targeting === undefined ? {} : { targeting: { ...d.targeting } }),
+      variants: d.variants.map((v) =>
+        withDiscriminant<VariantJson>(
+          {
+            name: v.name,
+            fields: v.fields.map((f) => ({ name: f.name, type: refToJson(f.type) })),
+          },
+          v.discriminant
+        )
+      ),
     };
   }
   return {
@@ -75,6 +89,7 @@ function declToJson(d: ResolvedDecl): DeclJson {
     name: d.name,
     generics: [...d.generics],
     target: refToJson(d.target),
+    ...(d.targeting === undefined ? {} : { targeting: { ...d.targeting } }),
   };
 }
 
@@ -134,39 +149,89 @@ function declFromJson(d: unknown): Result<ResolvedDecl, Diagnostic[]> {
     if (!Array.isArray(x.fields)) {
       return fail("record.fields must be an array");
     }
+    const targeting = targetingFromJson(x.targeting);
+    if (!targeting.ok) {
+      return targeting;
+    }
     return ok({
       kind: "record",
       name: x.name,
       generics: x.generics,
       fields: x.fields.map(fieldFromJson),
+      ...(targeting.value === undefined ? {} : { targeting: targeting.value }),
     });
   }
   if (x.kind === "union") {
     if (!Array.isArray(x.variants)) {
       return fail("union.variants must be an array");
     }
+    const targeting = targetingFromJson(x.targeting);
+    if (!targeting.ok) {
+      return targeting;
+    }
     return ok({
       kind: "union",
       name: x.name,
       generics: x.generics,
-      variants: x.variants.map((v) => ({
-        name: v.name,
-        fields: v.fields.map(fieldFromJson),
-      })),
+      ...(x.untagged === true ? { untagged: true as const } : {}),
+      variants: x.variants.map((v) =>
+        withDiscriminant<ResolvedVariant>(
+          {
+            name: v.name,
+            fields: v.fields.map(fieldFromJson),
+          },
+          v.discriminant
+        )
+      ),
+      ...(targeting.value === undefined ? {} : { targeting: targeting.value }),
     });
   }
   if (x.kind === "alias") {
     if (!x.target) {
       return fail("alias.target required");
     }
+    const targeting = targetingFromJson(x.targeting);
+    if (!targeting.ok) {
+      return targeting;
+    }
     return ok({
       kind: "alias",
       name: x.name,
       generics: x.generics,
       target: refFromJson(x.target),
+      ...(targeting.value === undefined ? {} : { targeting: targeting.value }),
     });
   }
   return fail(`unknown decl kind '${String(x.kind)}'`);
+}
+
+function targetingFromJson(value: unknown): Result<DeclTargeting | undefined, Diagnostic[]> {
+  if (value === undefined) {
+    return ok(undefined);
+  }
+  const errs: Diagnostic[] = [];
+  const fail = (msg: string): Result<DeclTargeting | undefined, Diagnostic[]> => {
+    errs.push({ severity: "error", message: msg, line: 0, col: 0, length: 0 });
+    return err(errs);
+  };
+  if (typeof value !== "object" || value === null) {
+    return fail("decl.targeting must be an object");
+  }
+  const targeting = value as { targets?: unknown; skipTargets?: unknown };
+  if (targeting.targets !== undefined && !isStringArray(targeting.targets)) {
+    return fail("decl.targeting.targets must be an array of strings");
+  }
+  if (targeting.skipTargets !== undefined && !isStringArray(targeting.skipTargets)) {
+    return fail("decl.targeting.skipTargets must be an array of strings");
+  }
+  return ok({
+    ...(targeting.targets === undefined ? {} : { targets: targeting.targets }),
+    ...(targeting.skipTargets === undefined ? {} : { skipTargets: targeting.skipTargets }),
+  });
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === "string");
 }
 
 function fieldFromJson(f: FieldJson): { name: string; type: ResolvedTypeRef } {

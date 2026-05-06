@@ -1,6 +1,7 @@
 import type { AliasDecl, Declaration, Diagram, Field, RecordDecl, TypeRef, UnionDecl, Variant } from "../parser/ast.js";
 import { DiagnosticBag, type Diagnostic } from "../parser/diagnostics.js";
 import { type Result, err, ok } from "../result.js";
+import { withDiscriminant } from "../variant.js";
 import {
   PRIMITIVES,
   type Edge,
@@ -41,7 +42,7 @@ export function buildModelPartial(ast: Diagram): { model: Model; diagnostics: Di
     decls.push(resolveDecl(d, declMap, externals, bag));
   }
 
-  const edges = collectEdges(decls, declMap);
+  const edges = collectEdges(decls);
 
   const model: Model = {
     decls,
@@ -85,6 +86,7 @@ function resolveRecord(
     name: d.name,
     generics: [...d.generics],
     fields: d.fields.map((f) => resolveField(f, d.name, declMap, externals, generics, bag)),
+    ...(d.targeting === undefined ? {} : { targeting: { ...d.targeting } }),
   };
 }
 
@@ -99,7 +101,9 @@ function resolveUnion(
     kind: "union",
     name: d.name,
     generics: [...d.generics],
+    ...(d.untagged === true ? { untagged: true as const } : {}),
     variants: d.variants.map((v) => resolveVariant(v, d.name, declMap, externals, generics, bag)),
+    ...(d.targeting === undefined ? {} : { targeting: { ...d.targeting } }),
   };
 }
 
@@ -115,6 +119,7 @@ function resolveAlias(
     name: d.name,
     generics: [...d.generics],
     target: resolveTypeRef(d.target, d.name, declMap, externals, generics, bag),
+    ...(d.targeting === undefined ? {} : { targeting: { ...d.targeting } }),
   };
 }
 
@@ -126,10 +131,13 @@ function resolveVariant(
   generics: Set<string>,
   bag: DiagnosticBag
 ): ResolvedVariant {
-  return {
-    name: v.name,
-    fields: v.fields.map((f) => resolveField(f, ownerName, declMap, externals, generics, bag)),
-  };
+  return withDiscriminant<ResolvedVariant>(
+    {
+      name: v.name,
+      fields: v.fields.map((f) => resolveField(f, ownerName, declMap, externals, generics, bag)),
+    },
+    v.discriminant
+  );
 }
 
 function resolveField(
@@ -203,7 +211,7 @@ function* walkDeclaredRefs(t: ResolvedTypeRef): Generator<{ declName: string; is
   }
 }
 
-function collectEdges(decls: ResolvedDecl[], declMap: Map<string, DeclEntry>): Edge[] {
+function collectEdges(decls: ResolvedDecl[]): Edge[] {
   const edges: Edge[] = [];
   const seen = new Set<string>();
 
@@ -259,8 +267,5 @@ function collectEdges(decls: ResolvedDecl[], declMap: Map<string, DeclEntry>): E
       }
     }
   }
-
-  // suppress unused param warning
-  void declMap;
   return edges;
 }

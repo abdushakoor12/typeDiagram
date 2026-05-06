@@ -3,15 +3,18 @@ import type { DiagnosticBag } from "./diagnostics.js";
 export type TokenKind =
   | "TypeKw"
   | "UnionKw"
+  | "UntaggedKw"
   | "AliasKw"
   | "TypeDiagramKw"
   | "Ident"
+  | "Number"
   | "LBrace"
   | "RBrace"
   | "LParen"
   | "RParen"
   | "LAngle"
   | "RAngle"
+  | "At"
   | "Comma"
   | "Colon"
   | "Equals"
@@ -30,6 +33,7 @@ export interface Token {
 const KEYWORDS: Record<string, TokenKind> = {
   type: "TypeKw",
   union: "UnionKw",
+  untagged: "UntaggedKw",
   alias: "AliasKw",
   typeDiagram: "TypeDiagramKw",
 };
@@ -41,6 +45,7 @@ const SINGLE_CHAR: Record<string, TokenKind> = {
   ")": "RParen",
   "<": "LAngle",
   ">": "RAngle",
+  "@": "At",
   ",": "Comma",
   ":": "Colon",
   "=": "Equals",
@@ -52,6 +57,10 @@ function isIdentStart(c: string): boolean {
 
 function isIdentCont(c: string): boolean {
   return isIdentStart(c) || (c >= "0" && c <= "9");
+}
+
+function isDigit(c: string): boolean {
+  return c >= "0" && c <= "9";
 }
 
 export function tokenize(source: string, diagnostics: DiagnosticBag): Token[] {
@@ -115,6 +124,25 @@ export function tokenize(source: string, diagnostics: DiagnosticBag): Token[] {
       const value = source.slice(i, end);
       const kind = KEYWORDS[value] ?? "Ident";
       emit(kind, value, startLine, startCol, startOffset);
+      col += end - i;
+      i = end;
+      continue;
+    }
+
+    if (isDigit(c) || (c === "-" && isDigit(source.charAt(i + 1)))) {
+      const startLine = line;
+      const startCol = col;
+      const startOffset = i;
+      let end = i + (c === "-" ? 2 : 1);
+      while (end < len) {
+        const next = source.charAt(end);
+        if (!isDigit(next) && next !== "_") {
+          break;
+        }
+        end++;
+      }
+      const value = source.slice(i, end);
+      emit("Number", value, startLine, startCol, startOffset);
       col += end - i;
       i = end;
       continue;

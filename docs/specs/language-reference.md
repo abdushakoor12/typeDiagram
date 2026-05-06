@@ -46,6 +46,18 @@ union Shape {
 
 Unions render visually distinct from records: dashed dividers between variants and a `|` pipe prefix on each variant row.
 
+Variants can also pin an explicit numeric discriminant:
+
+```
+union ErrorCode {
+  ParseError = -32700
+  InvalidRequest = -32600
+  MethodNotFound = -32601
+}
+```
+
+This is useful when the integer value is part of a wire contract, such as protocol error codes or FFI enums.
+
 ### Generic unions
 
 ```
@@ -147,10 +159,11 @@ Record      = "type" Name Generics? "{" Field* "}"
 Union       = "union" Name Generics? "{" Variant* "}"
 Alias       = "alias" Name Generics? "=" TypeRef
 Field       = Name ":" TypeRef
-Variant     = Name ("{" Field* "}")?
+Variant     = Name ("=" Number)? ("{" Field* "}")?
 TypeRef     = Name ("<" TypeRef ("," TypeRef)* ">")?
 Generics    = "<" Name ("," Name)* ">"
 Name        = [A-Za-z_][A-Za-z0-9_]*
+Number      = "-"? [0-9] ([0-9_]* [0-9])?
 ```
 
 The grammar is LL(1) with ~6 productions. Newlines and commas both work as separators inside `{ }` blocks.

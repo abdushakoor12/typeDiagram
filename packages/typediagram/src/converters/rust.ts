@@ -1,7 +1,8 @@
 // [CONV-RUST] Rust <-> typeDiagram bidirectional converter.
 import type { Diagnostic } from "../parser/diagnostics.js";
 import { type Result, err } from "../result.js";
-import { isTupleVariantFields, type Model, type ResolvedTypeRef } from "../model/types.js";
+import { formatVariantName, withDiscriminant } from "../variant.js";
+import { isTupleVariantFields, type Model, type ResolvedTypeRef, visibleDeclsForTarget } from "../model/types.js";
 import { ModelBuilder, record, union, alias } from "../model/builder.js";
 import type { Converter } from "./types.js";
 import { parseTypeRef } from "./parse-typeref.js";
@@ -155,8 +156,15 @@ const splitRsVariants = (body: string): string[] => {
   return last.length > 0 ? [...parts, last] : parts;
 };
 
+const parseUnitVariant = (line: string) => {
+  const [rawName, rawDiscriminant] = line.split("=").map((part) => part.trim());
+  return rawDiscriminant === undefined
+    ? { name: line.replace(/,$/, "").trim() }
+    : { name: rawName ?? line.replace(/,$/, "").trim(), discriminant: rawDiscriminant.replace(/,$/, "").trim() };
+};
+
 const parseRsVariants = (body: string) => {
-  const variants: Array<{ name: string; fields: Array<{ name: string; type: string }> }> = [];
+  const variants: Array<{ name: string; discriminant?: string; fields: Array<{ name: string; type: string }> }> = [];
   const raw = splitRsVariants(body).filter((s) => s.length > 0 && !s.startsWith("//"));
 
   for (const line of raw) {
@@ -177,7 +185,7 @@ const parseRsVariants = (body: string) => {
       const fields = types.map((t, i) => ({ name: `_${String(i)}`, type: mapRsType(t) }));
       variants.push({ name, fields });
     } else {
-      variants.push({ name: line.replace(/,$/, "").trim(), fields: [] });
+      variants.push({ ...parseUnitVariant(line), fields: [] });
     }
   }
   return variants;
@@ -222,10 +230,19 @@ const fromRust = (source: string): Result<Model, Diagnostic[]> => {
       continue;
     }
     found = true;
-    const variants = parseRsVariants(body).map((v) => ({
-      name: v.name,
-      fields: v.fields.map((f) => ({ name: f.name, type: parseTypeRef(f.type) })),
-    }));
+    const variants = parseRsVariants(body).map((v) =>
+      withDiscriminant<{
+        name: string;
+        discriminant?: string;
+        fields: Array<{ name: string; type: ResolvedTypeRef }>;
+      }>(
+        {
+          name: v.name,
+          fields: v.fields.map((f) => ({ name: f.name, type: parseTypeRef(f.type) })),
+        },
+        v.discriminant
+      )
+    );
     builder.add(union(name, variants, rsGenerics(gens)));
   }
 
@@ -253,8 +270,9 @@ const mapTdToRs = (t: ResolvedTypeRef): string => {
 
 const toRust = (model: Model): string => {
   const lines: string[] = [];
+  const decls = visibleDeclsForTarget(model.decls, "rust");
 
-  for (const d of model.decls) {
+  for (const d of decls) {
     const genericsStr = d.generics.length > 0 ? `<${d.generics.join(", ")}>` : "";
 
     if (d.kind === "record") {
@@ -264,10 +282,13 @@ const toRust = (model: Model): string => {
       }
       lines.push("}", "");
     } else if (d.kind === "union") {
+      if (d.untagged === true) {
+        lines.push("#[serde(untagged)]");
+      }
       lines.push(`pub enum ${d.name}${genericsStr} {`);
       for (const v of d.variants) {
         if (v.fields.length === 0) {
-          lines.push(`    ${v.name},`);
+          lines.push(`    ${formatVariantName(v.name, v.discriminant)},`);
         } else if (isTupleVariantFields(v.fields)) {
           lines.push(`    ${v.name}(${v.fields.map((f) => mapTdToRs(f.type)).join(", ")}),`);
         } else {

@@ -1,5 +1,5 @@
 import type { Diagnostic } from "./parser/diagnostics.js";
-import { type Result, andThenAsync, err, ok } from "./result.js";
+import { type Result, err, ok } from "./result.js";
 import { parse as parseSrc } from "./parser/index.js";
 import { buildModel } from "./model/index.js";
 import { layout, layoutSync, warmupLayout, isLayoutWarm } from "./layout/index.js";
@@ -107,6 +107,3 @@ export type {
 export { svg, raw } from "./render-svg/index.js";
 
 export { HOME_PAGE_SAMPLE } from "./sample.js";
-
-// keep imports from being tree-shaken away in odd configurations
-void andThenAsync;

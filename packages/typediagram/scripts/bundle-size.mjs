@@ -3,13 +3,16 @@
 // budget. Uses esbuild to tree-shake and measure the output size.
 // Budget was 50 KB with 6 converters. Dart + Protobuf converters added
 // ~8-10 KB each of parser/emitter logic, so the budget was raised to 75 KB.
+// Tuple variants, explicit discriminants, and untagged unions pushed the
+// minified core slightly higher, and declaration-level target gating added
+// parser + emitter filtering overhead, so the current budget is 80 KB.
 import { build } from "esbuild";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const entry = resolve(here, "..", "src", "index.ts");
-const BUDGET_KB = 75.5;
+const BUDGET_KB = 80;
 
 const result = await build({
   entryPoints: [entry],

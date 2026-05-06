@@ -12,11 +12,17 @@ export interface Diagram {
 
 export type Declaration = RecordDecl | UnionDecl | AliasDecl;
 
+export interface DeclTargeting {
+  targets?: string[];
+  skipTargets?: string[];
+}
+
 export interface RecordDecl {
   kind: "record";
   name: string;
   generics: string[];
   fields: Field[];
+  targeting?: DeclTargeting;
   span: Span;
 }
 
@@ -24,7 +30,9 @@ export interface UnionDecl {
   kind: "union";
   name: string;
   generics: string[];
+  untagged?: true;
   variants: Variant[];
+  targeting?: DeclTargeting;
   span: Span;
 }
 
@@ -33,6 +41,7 @@ export interface AliasDecl {
   name: string;
   generics: string[];
   target: TypeRef;
+  targeting?: DeclTargeting;
   span: Span;
 }
 
@@ -44,6 +53,7 @@ export interface Field {
 
 export interface Variant {
   name: string;
+  discriminant?: string;
   fields: Field[];
   span: Span;
 }

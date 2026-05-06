@@ -60,6 +60,34 @@ describe("parser — small example", () => {
     const tri = shape.variants.find((v) => v.name === "Triangle");
     expect(tri?.fields.map((f) => f.name)).toEqual(["a", "b", "c"]);
   });
+
+  it("parses untagged unions", () => {
+    const untagged = unwrap(
+      parse(`
+untagged union RequestId {
+  Number(Int)
+  String(String)
+}
+`)
+    ).decls[0] as UnionDecl;
+    expect(untagged.kind).toBe("union");
+    expect(untagged.untagged).toBe(true);
+    expect(untagged.variants.map((variant) => variant.name)).toEqual(["Number", "String"]);
+  });
+
+  it("parses target annotations on declarations", () => {
+    const decl = unwrap(
+      parse(`
+@targets(rust)
+@skipTargets(typescript, python)
+type JsonRpcError {
+  code: Int
+}
+`)
+    ).decls[0] as RecordDecl;
+    expect(decl.targeting?.targets).toEqual(["rust"]);
+    expect(decl.targeting?.skipTargets).toEqual(["typescript", "python"]);
+  });
 });
 
 describe("parser — chat example", () => {
@@ -145,6 +173,32 @@ describe("parser — error handling", () => {
   it("recovery on alias missing target type", () => {
     const { diagnostics } = parsePartial("alias Foo = @bad");
     expect(diagnostics.some((d) => d.severity === "error")).toBe(true);
+  });
+
+  it("reports unknown annotations and still parses the following declaration", () => {
+    const { ast, diagnostics } = parsePartial(`
+@unknown(rust)
+type Foo { x: Int }
+`);
+    expect(diagnostics.some((d) => d.message.includes("unknown annotation"))).toBe(true);
+    const foo = ast.decls.find((d) => d.name === "Foo") as RecordDecl | undefined;
+    expect(foo?.kind).toBe("record");
+  });
+
+  it("reports malformed annotations missing parentheses", () => {
+    const { diagnostics } = parsePartial(`
+@targets
+type Foo { x: Int }
+`);
+    expect(diagnostics.some((d) => d.message.includes("expected '('"))).toBe(true);
+  });
+
+  it("reports malformed annotation target lists", () => {
+    const { diagnostics } = parsePartial(`
+@targets(@bad)
+type Foo { x: Int }
+`);
+    expect(diagnostics.some((d) => d.message.includes("target name"))).toBe(true);
   });
 
   it("recovery on record missing LBrace", () => {
