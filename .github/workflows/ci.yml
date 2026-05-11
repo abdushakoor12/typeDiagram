@@ -40,6 +40,9 @@ jobs:
       - name: CI (make ci)
         run: make ci
 
+      - name: VS Code Electron tests
+        run: npm run -w packages/vscode test:electron
+
       - name: Upload coverage
         uses: actions/upload-artifact@v4
         if: always()

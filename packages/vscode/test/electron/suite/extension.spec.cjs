@@ -1,14 +1,10 @@
-// [VSCODE-E2E-SPEC] Real VS Code assertions: the extension activates, declares the
-// expected contributions, and the markdown injection grammar applies to typediagram
-// fences inside a real .md file opened in the editor.
 const assert = require("node:assert");
+const fs = require("node:fs/promises");
+const os = require("node:os");
 const path = require("node:path");
 const vscode = require("vscode");
 
 suite("typediagram extension inside a real VS Code", () => {
-  // When loaded via extensionDevelopmentPath the id is publisher.<workspace-name>,
-  // which in the monorepo is "nimblesite.typediagram-vscode". A packaged VSIX
-  // rewrites it to "nimblesite.typediagram". We accept either.
   const candidateIds = ["nimblesite.typediagram", "nimblesite.typediagram-vscode"];
   const findExt = () => candidateIds.map((id) => vscode.extensions.getExtension(id)).find(Boolean);
 
@@ -31,19 +27,48 @@ suite("typediagram extension inside a real VS Code", () => {
     assert.strictEqual(contributes["markdown.markdownItPlugins"], true, "markdownItPlugins flag not set");
   });
 
-  test("opens spec.md and extendMarkdownIt runs (preview refresh is triggered)", async () => {
-    const docPath = path.resolve(__dirname, "../../../examples/spec.md");
-    const uri = vscode.Uri.file(docPath);
-    const doc = await vscode.workspace.openTextDocument(uri);
-    await vscode.window.showTextDocument(doc);
-    assert.strictEqual(doc.languageId, "markdown");
-    // Trigger the built-in markdown preview. This causes VS Code to load
-    // all contributed markdown-it plugins — ours included.
-    await vscode.commands.executeCommand("markdown.showPreview");
-    // Give VS Code + our warmup a moment to settle.
-    await new Promise((r) => setTimeout(r, 2000));
-    // There's no public API to scrape preview HTML. The fact that the command
-    // doesn't throw AND the extension activated (previous test) is the smoke test.
-    // Real render correctness is covered by the pure-node markdown-it-plugin test suite.
+  test("exportMarkdownPdf writes a real PDF in desktop VS Code and diagrams add content", async function () {
+    this.timeout(60_000);
+    const ext = findExt();
+    assert.ok(ext);
+    await ext.activate();
+
+    const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "typediagram-electron-"));
+    const plainPath = path.join(tmpRoot, "plain.md");
+    const diagramPath = path.join(tmpRoot, "diagram.md");
+    const plainPdf = path.join(tmpRoot, "plain.pdf");
+    const diagramPdf = path.join(tmpRoot, "diagram.pdf");
+
+    await fs.writeFile(plainPath, "# Plain\n\nJust text.\n", "utf8");
+    await fs.writeFile(
+      diagramPath,
+      "# Diagram\n\n```typediagram\ntype X { a: Int }\n```\n",
+      "utf8"
+    );
+
+    const plainUri = vscode.Uri.file(plainPath);
+    const diagramUri = vscode.Uri.file(diagramPath);
+    await vscode.workspace.openTextDocument(plainUri).then((doc) => vscode.window.showTextDocument(doc));
+    await vscode.commands.executeCommand("typediagram.exportMarkdownPdf", plainUri);
+    await vscode.commands.executeCommand("typediagram.exportMarkdownPdf", diagramUri);
+
+    const plainBytes = await waitForPdf(plainPdf);
+    const diagramBytes = await waitForPdf(diagramPdf);
+    assert.strictEqual(plainBytes.subarray(0, 5).toString("latin1"), "%PDF-");
+    assert.strictEqual(diagramBytes.subarray(0, 5).toString("latin1"), "%PDF-");
+    assert.ok(diagramBytes.length > plainBytes.length, "diagram PDF should contain more content than plain text PDF");
   });
 });
+
+async function waitForPdf(pdfPath) {
+  for (let i = 0; i < 80; i += 1) {
+    try {
+      const buf = await fs.readFile(pdfPath);
+      if (buf.length > 5) {
+        return buf;
+      }
+    } catch {}
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error(`timed out waiting for ${pdfPath}`);
+}

@@ -153,14 +153,6 @@ export const activate = async (context: vscode.ExtensionContext) => {
       readFile: (u) => Promise.resolve(vscode.workspace.fs.readFile(u)).then((b) => new Uint8Array(b)),
       writeFile: (u, data) => Promise.resolve(vscode.workspace.fs.writeFile(u, data)),
       uriWithPath: (base, newPath) => base.with({ path: newPath }),
-      isPrintToPdfRuntimeSupported: () => vscode.env.uiKind === vscode.UIKind.Desktop,
-      createWebviewPanel: (viewType, title, showOptions, opts) =>
-        vscode.window.createWebviewPanel(
-          viewType,
-          title,
-          { viewColumn: showOptions.viewColumn, preserveFocus: showOptions.preserveFocus },
-          opts
-        ) as never,
       showInformationMessage: (msg, ...actions) =>
         Promise.resolve(vscode.window.showInformationMessage(msg, ...actions)),
       showErrorMessage: (msg) => {

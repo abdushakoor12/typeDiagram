@@ -159,6 +159,8 @@
   },
   "dependencies": {
     "markdown-it": "^14.1.0",
+    "pdfkit": "^0.18.0",
+    "svg-to-pdfkit": "^0.1.8",
     "typediagram-core": "0.8.0"
   },
   "devDependencies": {
@@ -170,8 +172,6 @@
     "@vscode/test-electron": "^2.5.2",
     "esbuild": "^0.24.0",
     "mocha": "^11.7.5",
-    "pdfkit": "^0.18.0",
-    "svg-to-pdfkit": "^0.1.8",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0",
     "vscode-oniguruma": "^2.0.1",

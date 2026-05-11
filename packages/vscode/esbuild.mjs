@@ -1,7 +1,13 @@
 // [VSCODE-BUILD] Bundle extension (Node) + webview (browser) with esbuild.
 import { build } from "esbuild";
+import { cpSync, existsSync, mkdirSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const production = process.argv.includes("--production");
+const HERE = dirname(fileURLToPath(import.meta.url));
+const DIST_DATA_DIR = resolve(HERE, "dist/data");
+const PDFKIT_DATA_DIR = resolve(HERE, "node_modules/pdfkit/js/data");
 
 const shared = {
   bundle: true,
@@ -29,3 +35,8 @@ await build({
   format: "iife",
   platform: "browser",
 });
+
+mkdirSync(DIST_DATA_DIR, { recursive: true });
+if (existsSync(PDFKIT_DATA_DIR)) {
+  cpSync(PDFKIT_DATA_DIR, DIST_DATA_DIR, { recursive: true });
+}
