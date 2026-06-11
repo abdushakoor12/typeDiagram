@@ -10,10 +10,16 @@
 // convenience emitter for downstream use.
 import type { Diagnostic } from "../parser/diagnostics.js";
 import { type Result, err } from "../result.js";
-import { type Model, type ResolvedDecl, type ResolvedTypeRef, visibleDeclsForTarget } from "../model/types.js";
+import {
+  modelReferencesType,
+  visibleDeclsForTarget,
+  type Model,
+  type ResolvedDecl,
+  type ResolvedTypeRef,
+} from "../model/types.js";
 import { ModelBuilder, record, union, alias } from "../model/builder.js";
 import type { Converter, PythonOpts } from "./types.js";
-import { parseTypeRef } from "./parse-typeref.js";
+import { mapBuiltinName, parseTypeRef, splitGenericArgs } from "./parse-typeref.js";
 
 // ── Type mapping ──
 
@@ -28,6 +34,9 @@ const TD_TO_PY: Record<string, string> = {
   Map: "dict",
   Option: "Optional",
   Any: "Any",
+  DateTime: "datetime.datetime",
+  Uuid: "uuid.UUID",
+  Decimal: "decimal.Decimal",
 };
 
 const PY_TO_TD: Record<string, string> = {
@@ -44,7 +53,23 @@ const PY_TO_TD: Record<string, string> = {
   Dict: "Map",
   Set: "List",
   Tuple: "List",
+  "datetime.datetime": "DateTime",
+  datetime: "DateTime",
+  "uuid.UUID": "Uuid",
+  UUID: "Uuid",
+  "decimal.Decimal": "Decimal",
+  Decimal: "Decimal",
 };
+
+// [MODEL-SCALARS] stdlib module imported per scalar when the model uses it.
+const PY_SCALAR_MODULES: ReadonlyArray<readonly [string, string]> = [
+  ["DateTime", "datetime"],
+  ["Uuid", "uuid"],
+  ["Decimal", "decimal"],
+];
+
+const scalarImportLines = (decls: readonly ResolvedDecl[]): string[] =>
+  PY_SCALAR_MODULES.filter(([scalar]) => modelReferencesType(decls, scalar)).map(([, mod]) => `import ${mod}`);
 
 // ── From Python ──
 
@@ -77,24 +102,8 @@ const mapPyType = (t: string): string => {
     return mapped;
   }
   const inner = normalized.slice(angleBracket + 1, normalized.lastIndexOf(">"));
-  const args = splitPyArgs(inner).map(mapPyType);
+  const args = splitGenericArgs(inner).map(mapPyType);
   return `${mapped}<${args.join(", ")}>`;
-};
-
-const splitPyArgs = (s: string): string[] => {
-  const parts: string[] = [];
-  let depth = 0;
-  let start = 0;
-  for (let i = 0; i < s.length; i++) {
-    const c = s.charAt(i);
-    depth += c === "<" ? 1 : c === ">" ? -1 : 0;
-    if (c === "," && depth === 0) {
-      parts.push(s.slice(start, i).trim());
-      start = i + 1;
-    }
-  }
-  const last = s.slice(start).trim();
-  return last.length > 0 ? [...parts, last] : parts;
 };
 
 const parsePyFields = (body: string) =>
@@ -316,19 +325,8 @@ const isOption = (t: ResolvedTypeRef): boolean => t.name === "Option";
 const isList = (t: ResolvedTypeRef): boolean => t.name === "List";
 const isMap = (t: ResolvedTypeRef): boolean => t.name === "Map";
 
-const usesAny = (t: ResolvedTypeRef): boolean => t.name === "Any" || t.args.some(usesAny);
-
-const declUsesAny = (d: ResolvedDecl): boolean =>
-  d.kind === "record"
-    ? d.fields.some((f) => usesAny(f.type))
-    : d.kind === "union"
-      ? d.variants.some((v) => v.fields.some((f) => usesAny(f.type)))
-      : usesAny(d.target);
-
-const modelUsesAny = (decls: readonly ResolvedDecl[]): boolean => decls.some(declUsesAny);
-
 const mapTdToPyDataclass = (t: ResolvedTypeRef): string => {
-  const name = TD_TO_PY[t.name] ?? t.name;
+  const name = mapBuiltinName(t, TD_TO_PY);
   return t.args.length === 0 ? name : `${name}[${t.args.map(mapTdToPyDataclass).join(", ")}]`;
 };
 
@@ -339,7 +337,7 @@ const mapTdToPyPydantic = (t: ResolvedTypeRef): string => {
       return `${mapTdToPyPydantic(inner)} | None`;
     }
   }
-  const name = TD_TO_PY[t.name] ?? t.name;
+  const name = mapBuiltinName(t, TD_TO_PY);
   return t.args.length === 0 ? name : `${name}[${t.args.map(mapTdToPyPydantic).join(", ")}]`;
 };
 
@@ -382,7 +380,7 @@ const hasOption = (decls: readonly ResolvedDecl[]): boolean =>
 const hasGenerics = (decls: readonly ResolvedDecl[]): boolean => decls.some((d) => d.generics.length > 0);
 
 const buildDataclassImports = (decls: readonly ResolvedDecl[]): string[] => {
-  const lines = ["from __future__ import annotations"];
+  const lines = ["from __future__ import annotations", ...scalarImportLines(decls)];
   const dataclassImports = ["dataclass"];
   if (needsDataclassField(decls)) {
     dataclassImports.push("field");
@@ -395,7 +393,7 @@ const buildDataclassImports = (decls: readonly ResolvedDecl[]): string[] => {
   if (hasOption(decls)) {
     typingNames.push("Optional");
   }
-  if (modelUsesAny(decls)) {
+  if (modelReferencesType(decls, "Any")) {
     typingNames.push("Any");
   }
   if (hasGenerics(decls)) {
@@ -421,7 +419,7 @@ const buildDataclassImports = (decls: readonly ResolvedDecl[]): string[] => {
 };
 
 const buildPydanticImports = (decls: readonly ResolvedDecl[]): string[] => {
-  const lines = ["from __future__ import annotations", "from pydantic import BaseModel"];
+  const lines = ["from __future__ import annotations", ...scalarImportLines(decls), "from pydantic import BaseModel"];
   const hasCollections = decls.some(
     (d) =>
       (d.kind === "record" && d.fields.some((f) => isList(f.type) || isMap(f.type))) ||
@@ -433,7 +431,7 @@ const buildPydanticImports = (decls: readonly ResolvedDecl[]): string[] => {
   if (hasBareEnum(decls)) {
     lines.push("from enum import Enum");
   }
-  if (modelUsesAny(decls)) {
+  if (modelReferencesType(decls, "Any")) {
     lines.push("from typing import Any");
   }
   lines.push("");
